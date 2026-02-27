@@ -1,0 +1,40 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+/venv
+/.venv
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test/cache
+.pytest_cache/
+.tox/
+.coverage
+htmlcov/
+
+# Env & secrets (never commit!)
+.env
+.env.*
+!.env.example
+
+# Misc
+*.local
+tmp.*
+/tmp
+*.pyc
+.DS_Store
+*.whl
+docker-compose.override.yml

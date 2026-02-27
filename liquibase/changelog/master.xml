@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.9.xsd">
+    <!-- Please specify migration files in correct order using include file directive below! -->
+    <include file="./changelog_2025-02-25.xml" relativeToChangelogFile="true" />
+    <include file="./changelog_2025-06-06.xml" relativeToChangelogFile="true" />
+    <include file="./changelog_2025-06-08.xml" relativeToChangelogFile="true" />
+    <include file="./changelog_2025-08-20.xml" relativeToChangelogFile="true" />
+    <include file="./changelog_2025-10-28.xml" relativeToChangelogFile="true" />
+
+<!--    <include file="./insert_mock.xml" relativeToChangelogFile="true" />-->
+</databaseChangeLog>

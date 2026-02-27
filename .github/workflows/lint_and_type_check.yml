@@ -1,0 +1,33 @@
+name: Lint & Type Check
+on: [push, pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Ruff (fast static linter) - target the backend directory
+      - name: Run Ruff
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: check backend/src
+
+      # Install uv
+      - name: Install uv
+        uses: yezz123/setup-uv@v3
+
+      # Install project dependencies
+      - name: Install project dependencies
+        run: |
+          cd backend
+          uv venv
+          . .venv/bin/activate
+          uv pip install .
+
+      # Run MyPy via uv - target the backend source directory (correct execution)
+      - name: Run MyPy
+        run: |
+          cd backend
+          . .venv/bin/activate
+          mypy src --exclude src/tests

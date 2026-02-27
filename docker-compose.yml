@@ -1,0 +1,64 @@
+
+x-postgres-credentials: &postgres-credentials
+  POSTGRES_USER: ${POSTGRES_USER:-postgres}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+  POSTGRES_DB: ${POSTGRES_DB:-test}
+  POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+  POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+
+services:
+  postgres:
+    image: postgres:17.2-alpine
+    command: postgres -c max_connections=300
+    ports:
+      - "5432:5432"
+    environment:
+      <<:
+        - *postgres-credentials
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 5s
+      timeout: 1s
+      retries: 5
+
+  liquibase:
+    image: liquibase/liquibase:4.31-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<:
+        - *postgres-credentials
+    volumes:
+      - ./liquibase/changelog:/liquibase/changelog
+    command: >
+      liquibase update
+      --url=jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      --changelog-file=changelog/master.xml
+      --username=${POSTGRES_USER}
+      --password=${POSTGRES_PASSWORD}
+    #--log-level=All
+
+  backend:
+    platform: linux/amd64
+    build:
+      context: ./backend
+    depends_on:
+      liquibase:
+        condition: service_completed_successfully
+    ports:
+      - "8000:8000"
+    environment:
+      <<:
+        - *postgres-credentials
+      EMAIL_ADDRESS: ${EMAIL_ADDRESS:-info@vece.ai}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-rvxvwjvldjezwuft}
+      BASE_URL: ${BASE_URL:-http://localhost:8000/api}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+    volumes:
+      - ./backend/src/app:/src/app
+      - ./backend/src/infrastructure:/src/infrastructure
+      - ./backend/src/settings:/src/settings
+      - ./backend/src/main.py:/src/main.py
