@@ -12,12 +12,30 @@ from settings import sql_alchemy
 logger = logging.getLogger(__name__)
 
 
+def _get_database_url() -> str:
+    """Build DATABASE_URL and validate required env vars."""
+    required = {
+        "POSTGRES_USER": pg.POSTGRES_USER,
+        "POSTGRES_PASSWORD": pg.POSTGRES_PASSWORD,
+        "POSTGRES_HOST": pg.POSTGRES_HOST,
+        "POSTGRES_PORT": pg.POSTGRES_PORT,
+        "POSTGRES_DB": pg.POSTGRES_DB,
+    }
+    missing = [k for k, v in required.items() if not v]
+    if missing:
+        raise RuntimeError(
+            f"Missing required env vars in Railway Variables: {', '.join(missing)}. "
+            "Add them in Railway → backnew → Variables."
+        )
+    return f"postgresql+asyncpg://{pg.POSTGRES_USER}:{pg.POSTGRES_PASSWORD}@{pg.POSTGRES_HOST}:{pg.POSTGRES_PORT}/{pg.POSTGRES_DB}"
+
+
 class Base(DeclarativeBase):
     pass
 
 
 class Database:
-    DATABASE_URL = f"postgresql+asyncpg://{pg.POSTGRES_USER}:{pg.POSTGRES_PASSWORD}@{pg.POSTGRES_HOST}:{pg.POSTGRES_PORT}/{pg.POSTGRES_DB}"
+    DATABASE_URL = _get_database_url()
 
     def __init__(self, database_url: Optional[str] = None):
         self.engine = create_async_engine(
