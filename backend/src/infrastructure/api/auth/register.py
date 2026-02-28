@@ -1,12 +1,15 @@
 import logging
 from urllib.parse import quote
 
+from datetime import date
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr
 
 from app.exceptions import InvalidToken
-from app.schema.user import UserResponse
+from app.schema.user import UserResponse, GenderEnum
 from app.services.user import UserAlreadyExistsException
 from infrastructure.api.dependencies import user_service_dep
 from settings.general import FRONTEND_URL
@@ -25,6 +28,12 @@ class RegisterCompleteBody(BaseModel):
     username: str
     password: str
     verification_token: str
+    # Optional: country, birthday, gender — if not sent, defaults are used
+    country_id: Optional[int] = None
+    birthday: Optional[date] = None
+    gender: Optional[GenderEnum] = None
+    name: Optional[str] = None
+    surname: Optional[str] = None
 
 
 @router.post("/register/request-email", status_code=status.HTTP_200_OK)
@@ -83,13 +92,18 @@ async def complete_registration(
     body: RegisterCompleteBody,
     service: user_service_dep,
 ):
-    """Step 2: After email activation, user submits username and password."""
+    """Step 2: After email activation, user submits username, password, and optionally country, birthday, gender."""
     try:
         new_user = await service.complete_registration(
             email=body.email,
             username=body.username,
             password=body.password,
             verification_token=body.verification_token,
+            country_id=body.country_id,
+            birthday=body.birthday,
+            gender=body.gender,
+            name=body.name,
+            surname=body.surname,
         )
         return UserResponse.from_user(new_user)
     except UserAlreadyExistsException as e:

@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from datetime import datetime, timedelta
 
 from app.core.permissions import UserPermissions, UserViewLevel
@@ -95,6 +95,11 @@ class UserService:
         username: str,
         password: str,
         verification_token: str,
+        country_id: Optional[int] = None,
+        birthday: Optional["date"] = None,
+        gender: Optional["GenderEnum"] = None,
+        name: Optional[str] = None,
+        surname: Optional[str] = None,
     ) -> "User":
         """Create user after email activation. Validates token matches email."""
         from datetime import date
@@ -110,7 +115,7 @@ class UserService:
                 msg=f"Username {username} or email {email} already exists"
             )
 
-        # Defaults for simplified registration
+        # Defaults when not provided
         default_birthday = date(2000, 1, 1)
         default_country_id = 1
         default_gender = GenderEnum.other
@@ -120,9 +125,11 @@ class UserService:
             username=username,
             email=email,
             password=password,
-            birthday=default_birthday,
-            country_id=default_country_id,
-            gender=default_gender,
+            birthday=birthday or default_birthday,
+            country_id=country_id or default_country_id,
+            gender=gender or default_gender,
+            name=name,
+            surname=surname,
         )
         new_user = await self.repo.create_user_simple(
             user_data, hashed_password, is_verified=True
