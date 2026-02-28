@@ -9,6 +9,7 @@ if _env_path.exists():
     load_dotenv(_env_path)
 
 from fastapi import FastAPI  # noqa: E402
+from fastapi.responses import RedirectResponse  # noqa: E402
 from infrastructure.lifespan import lifespan  # noqa: E402
 from infrastructure.middleware.register import register_middleware  # noqa: E402
 from infrastructure.routes import register_routes  # noqa: E402
@@ -23,6 +24,12 @@ logger = logging.getLogger(__name__)
 app = FastAPI(lifespan=lifespan, root_path="/api")
 register_routes(app)
 register_middleware(app)
+
+
+@app.get("/")
+def root():
+    """Редирект с корня на /api/health."""
+    return RedirectResponse(url="/api/health", status_code=302)
 
 
 @app.get("/api/health")
