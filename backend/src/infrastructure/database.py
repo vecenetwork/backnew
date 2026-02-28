@@ -45,6 +45,7 @@ class Database:
             pool_recycle=3600,
             future=True,
             echo=sql_alchemy.SQLALCHEMY_ECHO,
+            connect_args={"statement_cache_size": 0},  # Required for Supabase/pgbouncer
         )
         self.async_session_maker = async_sessionmaker(
             self.engine, expire_on_commit=False, class_=AsyncSession
