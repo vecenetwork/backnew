@@ -1,5 +1,6 @@
 import os
 
+# Gmail: use EMAIL_ADDRESS=your@gmail.com + App Password. info@vece.ai won't work with smtp.gmail.com
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
 
