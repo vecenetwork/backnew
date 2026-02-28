@@ -1,0 +1,9 @@
+#!/bin/sh
+# Strip "Made-with: Cursor" from commit messages (added by Cursor IDE)
+FILE="$1"
+[ -f "$FILE" ] || exit 0
+if grep -q "Made-with.*Cursor" "$FILE"; then
+  sed -e 's/[[:space:]]*Made-with:[[:space:]]*Cursor[[:space:]]*//g' "$FILE" > "${FILE}.tmp"
+  mv "${FILE}.tmp" "$FILE"
+fi
+exit 0
