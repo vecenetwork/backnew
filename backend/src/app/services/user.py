@@ -1,6 +1,6 @@
 import logging
 from typing import TYPE_CHECKING, Optional
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from app.core.permissions import UserPermissions, UserViewLevel
 from app.exceptions import WrongPassword, Unauthorized, Missing, ConfigurationError, PermissionDenied, Duplicate, InvalidToken
@@ -12,7 +12,8 @@ from app.schema.user import (
     UserSettingsUpdate,
     SimilaritySortEnum,
     ConnectionFilterEnum,
-    TimeRangeEnum
+    TimeRangeEnum,
+    GenderEnum,
 )
 from app.schema import similarity as schema
 from app.core.security import get_password_hash, verify_password
@@ -96,16 +97,12 @@ class UserService:
         password: str,
         verification_token: str,
         country_id: Optional[int] = None,
-        birthday: Optional["date"] = None,
-        gender: Optional["GenderEnum"] = None,
+        birthday: Optional[date] = None,
+        gender: Optional[GenderEnum] = None,
         name: Optional[str] = None,
         surname: Optional[str] = None,
     ) -> "User":
         """Create user after email activation. Validates token matches email."""
-        from datetime import date
-
-        from app.schema.user import GenderEnum
-
         verified_email = await self.verification.verify_token(verification_token)
         if verified_email.lower() != email.lower():
             raise InvalidToken("Email does not match activation link")
