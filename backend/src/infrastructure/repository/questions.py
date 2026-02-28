@@ -544,7 +544,7 @@ class QuestionRepository:
             .values(**kwargs)
         )
         result = await self.db.execute(stmt)
-        if result.rowcount == 0:
+        if result.rowcount == 0:  # type: ignore[attr-defined]
             raise Missing(f"Question with id {question_id} not found or no update was made.")
 
         if commit:
