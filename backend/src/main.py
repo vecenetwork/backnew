@@ -28,4 +28,10 @@ register_middleware(app)
 @app.get("/api/health")
 def health():
     """Проверка: бэк запущен и доступен по /api."""
-    return {"status": "ok", "message": "Backend is running"}
+    import os
+    email_configured = bool(os.getenv("EMAIL_PASSWORD", "").strip())
+    return {
+        "status": "ok",
+        "message": "Backend is running",
+        "email_configured": email_configured,
+    }

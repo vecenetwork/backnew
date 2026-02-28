@@ -20,6 +20,10 @@ class EmailService:
     def __init__(self):
         self.sender_email, self.sender_password = self.get_credentials()
         self._use_console = not (self.sender_password and self.sender_password.strip())
+        if self._use_console:
+            logger.warning("EMAIL_PASSWORD is empty — emails will NOT be sent, links printed to logs only")
+        else:
+            logger.info("Email configured: sending via %s (from %s)", self.SMTP_HOST, self.sender_email)
 
     @staticmethod
     def get_credentials():
@@ -58,10 +62,10 @@ class EmailService:
                 username=self.sender_email,
                 password=self.sender_password,
             )
-            logger.info("Email sent successfully!")
+            logger.info("Email sent successfully to %s", to_email)
         except Exception as e:
-            logger.exception(f"Error sending email: {e}")
-            raise EmailSendError("Failed to send email.")
+            logger.exception("Error sending email to %s: %s", to_email, e)
+            raise EmailSendError(f"Failed to send email: {e}")
 
 
 def build_email_service() -> EmailService:
