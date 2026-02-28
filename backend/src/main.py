@@ -29,8 +29,12 @@ register_middleware(app)
 def health():
     """Проверка: бэк запущен и доступен по /api."""
     email_configured = bool(os.getenv("EMAIL_PASSWORD", "").strip())
+    base_url = os.getenv("BASE_URL", "http://localhost:8000/api")
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
     return {
         "status": "ok",
         "message": "Backend is running",
         "email_configured": email_configured,
+        "base_url": base_url,
+        "frontend_url": frontend_url,
     }
