@@ -1,6 +1,8 @@
 import logging
+import re
 from typing import TYPE_CHECKING, Optional
 from datetime import date, datetime, timedelta
+from uuid import uuid4
 
 from app.core.permissions import UserPermissions, UserViewLevel
 from app.exceptions import WrongPassword, Unauthorized, Missing, ConfigurationError, PermissionDenied, Duplicate, InvalidToken
@@ -90,41 +92,39 @@ class UserService:
             raise UserAlreadyExistsException(msg=f"Email {email} is already registered")
         await self.verification.send_activation_email(email)
 
+    def _generate_username(self, email: str) -> str:
+        """Generate unique username from email prefix + random suffix."""
+        prefix = re.sub(r"[^a-zA-Z0-9]", "", email.split("@")[0])[:20] or "user"
+        return f"{prefix}_{uuid4().hex[:6]}"
+
     async def complete_registration(
         self,
         email: str,
-        username: str,
         password: str,
         verification_token: str,
-        country_id: Optional[int] = None,
-        birthday: Optional[date] = None,
-        gender: Optional[GenderEnum] = None,
+        country_id: int,
+        birthday: date,
+        gender: GenderEnum,
         name: Optional[str] = None,
         surname: Optional[str] = None,
     ) -> "User":
-        """Create user after email activation. Validates token matches email."""
+        """Create user after email activation. Validates token matches email. Username is auto-generated."""
         verified_email = await self.verification.verify_token(verification_token)
         if verified_email.lower() != email.lower():
             raise InvalidToken("Email does not match activation link")
 
-        if await self.repo.user_exists_by_username_or_email(username, email):
-            raise UserAlreadyExistsException(
-                msg=f"Username {username} or email {email} already exists"
-            )
+        if await self.repo.user_exists_by_username_or_email("", email):
+            raise UserAlreadyExistsException(msg=f"Email {email} already exists")
 
-        # Defaults when not provided
-        default_birthday = date(2000, 1, 1)
-        default_country_id = 1
-        default_gender = GenderEnum.other
-
+        username = self._generate_username(email)
         hashed_password = get_password_hash(password)
         user_data = UserCreate(
             username=username,
             email=email,
             password=password,
-            birthday=birthday or default_birthday,
-            country_id=country_id or default_country_id,
-            gender=gender or default_gender,
+            birthday=birthday,
+            country_id=country_id,
+            gender=gender,
             name=name,
             surname=surname,
         )

@@ -26,13 +26,11 @@ class RequestEmailBody(BaseModel):
 
 class RegisterCompleteBody(BaseModel):
     email: EmailStr
-    username: str
     password: str
     verification_token: str
-    # Optional: country, birthday, gender — if not sent, defaults are used
-    country_id: Optional[int] = None
-    birthday: Optional[date] = None
-    gender: Optional[GenderEnum] = None
+    country_id: int
+    birthday: date
+    gender: GenderEnum
     name: Optional[str] = None
     surname: Optional[str] = None
 
@@ -99,11 +97,10 @@ async def complete_registration(
     body: RegisterCompleteBody,
     service: user_service_dep,
 ):
-    """Step 2: After email activation, user submits username, password, and optionally country, birthday, gender."""
+    """Step 2: After email activation, user submits password, country, birthday, gender. Username is auto-generated."""
     try:
         new_user = await service.complete_registration(
             email=body.email,
-            username=body.username,
             password=body.password,
             verification_token=body.verification_token,
             country_id=body.country_id,

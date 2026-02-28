@@ -13,7 +13,7 @@
 1. **Шаг 1:** Пользователь вводит email → `POST /api/register/request-email`
 2. **Письмо:** Ссылка вида `http://localhost:8000/api/verify-email?token=xxx`
 3. **Клик по ссылке:** Бэк проверяет токен и редиректит на `http://localhost:3000/sign-up?email=xxx&token=xxx`
-4. **Шаг 2:** Пользователь вводит username и password → `POST /api/register/complete`
+4. **Шаг 2:** Пользователь вводит country, birthday, gender и password → `POST /api/register/complete` (username генерируется автоматически)
 
 ## Email (отправка писем)
 
