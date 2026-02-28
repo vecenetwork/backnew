@@ -36,6 +36,7 @@ class DemoAnswerItem(BaseModel):
 
 class DemoData(BaseModel):
     hashtag_ids: list[int] = []
+    favourite_hashtag_ids: list[int] = []  # Subset of hashtag_ids to mark as favourite
     answers: list[DemoAnswerItem] = []
 
 
@@ -129,10 +130,12 @@ async def complete_registration(
             surname=body.surname,
         )
         if body.demo_data:
+            favourite_ids = set(body.demo_data.favourite_hashtag_ids or [])
             for hashtag_id in set(body.demo_data.hashtag_ids):
                 try:
                     await subscription_service.subscribe(
-                        new_user, hashtag_id, SubscriptionTypeEnum.hashtag
+                        new_user, hashtag_id, SubscriptionTypeEnum.hashtag,
+                        favourite=hashtag_id in favourite_ids,
                     )
                 except Exception as e:
                     logger.warning("Demo migration: failed to subscribe to hashtag %s: %s", hashtag_id, e)

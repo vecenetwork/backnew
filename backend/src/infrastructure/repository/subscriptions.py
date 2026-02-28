@@ -70,14 +70,29 @@ class SubscriptionRepository:
         return [row[0] for row in result]
 
     async def subscribe(
-        self, user: "User", subscribed_to_id: int, subscription_type: SubscriptionTypeEnum
+        self, user: "User", subscribed_to_id: int, subscription_type: SubscriptionTypeEnum, favourite: bool = False
     ) -> SubscriptionResponse:
         # TODO: add duplicate handling 409
+
+        if favourite and subscription_type == SubscriptionTypeEnum.hashtag:
+            result = await self.db.execute(
+                select(func.count())
+                .select_from(SubscriptionORM)
+                .where(
+                    SubscriptionORM.subscriber_id == user.id,
+                    SubscriptionORM.subscribed_to_type == SubscriptionTypeEnum.hashtag,
+                    SubscriptionORM.favourite == True,  # noqa: E712
+                )
+            )
+            current: int = result.scalar_one()  # type: ignore[assignment]
+            if current >= 8:
+                raise MaxFavoritesReached(8)
 
         new_subscription = SubscriptionORM(
             subscriber_id=user.id,
             subscribed_to_id=subscribed_to_id,
             subscribed_to_type=subscription_type,
+            favourite=favourite,
         )
 
         self.db.add(new_subscription)

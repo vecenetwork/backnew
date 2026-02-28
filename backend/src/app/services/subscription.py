@@ -19,11 +19,11 @@ class SubscriptionService:
         self.repo = repo
 
     async def subscribe(
-        self, current_user: "User", subscribed_to_id: int, subscription_type: SubscriptionTypeEnum
+        self, current_user: "User", subscribed_to_id: int, subscription_type: SubscriptionTypeEnum, favourite: bool = False
     ) -> SubscriptionResponse:
         logger.info(f"Subscribing to subscription type {subscription_type}")
         new_subscription = await self.repo.subscribe(
-            current_user, subscribed_to_id, subscription_type
+            current_user, subscribed_to_id, subscription_type, favourite=favourite
         )
         logger.info(f"Created subscription {new_subscription}")
         return new_subscription
