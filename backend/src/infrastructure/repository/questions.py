@@ -11,6 +11,8 @@ from sqlalchemy.dialects.postgresql import Range
 from app.exceptions import Missing
 from app.orm.questions import QuestionORM, QuestionOptionORM, AnswerORM, QuestionHashtagLinkORM
 from app.orm.user import UserORM, UserSettingsORM
+
+DEMO_AUTHOR_USERNAME = "vece"
 from app.orm.subscriptions import SubscriptionORM
 from app.schema.questions import (
     Question,
@@ -587,6 +589,39 @@ class QuestionRepository:
             questions.append(validated_question)
 
         return questions
+
+    async def get_demo_questions(
+        self,
+        hashtag_ids: Optional[List[int]] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[QuestionResponse]:
+        """Get questions from demo pool (vece user), optionally filtered by hashtags. No auth required."""
+        stmt = (
+            select(QuestionORM)
+            .join(UserORM, QuestionORM.author_id == UserORM.id)
+            .where(UserORM.username == DEMO_AUTHOR_USERNAME)
+        )
+        if hashtag_ids:
+            stmt = stmt.join(
+                QuestionHashtagLinkORM,
+                QuestionORM.id == QuestionHashtagLinkORM.question_id,
+            ).where(QuestionHashtagLinkORM.hashtag_id.in_(hashtag_ids))
+        stmt = stmt.order_by(QuestionORM.created_at.desc()).limit(limit).offset(offset).distinct()
+        stmt = self._add_base_joins(stmt)
+
+        result = await self.db.execute(stmt)
+        questions_orm = result.scalars().all()
+
+        return [
+            self._orm_to_question_response(q) for q in questions_orm
+        ]
+
+    def _orm_to_question_response(self, question_orm: QuestionORM) -> QuestionResponse:
+        """Convert ORM to QuestionResponse (no subscription status)."""
+        validated = QuestionResponse.model_validate(question_orm)
+        validated.age_range = question_orm.age_range
+        return validated
 
     async def search(
         self,

@@ -9,6 +9,7 @@ from infrastructure.api.auth import (
 )
 from infrastructure.api import (
     countries,
+    demo,
     users,
     user_image,
     subscriptions,
@@ -27,6 +28,7 @@ API_PREFIX = "/api"
 routers = [
     register.router,
     login.router,
+    demo.router,
     barrier.router,
     users.router,
     user_image.router,

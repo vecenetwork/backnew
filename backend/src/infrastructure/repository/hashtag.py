@@ -5,14 +5,17 @@ from sqlalchemy.sql import Select
 
 from app.exceptions import Missing
 from app.orm.hashtags import HashtagORM
-from app.orm.questions import QuestionHashtagLinkORM
+from app.orm.questions import QuestionHashtagLinkORM, QuestionORM
 from app.orm.subscriptions import SubscriptionORM
+from app.orm.user import UserORM
 from app.schema.hashtags import Hashtag
 from app.schema.user import User
 
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+
+DEMO_AUTHOR_USERNAME = "vece"
 
 
 class HashtagRepository:
@@ -82,6 +85,24 @@ class HashtagRepository:
             async with self.db.begin():
                 result = await self.db.execute(stmt)
         return [row[0] for row in result.all()]
+
+    async def get_hashtags_from_demo_pool(self) -> list[Hashtag]:
+        """Hashtags that appear in questions by the demo author (vece). No auth required."""
+        stmt = (
+            select(HashtagORM)
+            .join(QuestionHashtagLinkORM, HashtagORM.id == QuestionHashtagLinkORM.hashtag_id)
+            .join(QuestionORM, QuestionHashtagLinkORM.question_id == QuestionORM.id)
+            .join(UserORM, QuestionORM.author_id == UserORM.id)
+            .where(UserORM.username == DEMO_AUTHOR_USERNAME)
+            .distinct()
+        )
+        if self.db.in_transaction():
+            result = await self.db.execute(stmt)
+        else:
+            async with self.db.begin():
+                result = await self.db.execute(stmt)
+        hashtags_orm = result.scalars().all()
+        return [Hashtag.model_validate(h) for h in hashtags_orm]
 
     async def get_random_hashtags(self, limit: int, current_user: Optional[User] = None) -> list[Hashtag]:
         """Retrieve random hashtags with optional subscription status."""

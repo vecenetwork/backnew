@@ -10,9 +10,14 @@ from pydantic import BaseModel, EmailStr
 
 from app.exceptions import InvalidToken
 from app.schema.user import UserResponse, GenderEnum
+from app.schema.subscriptions import SubscriptionTypeEnum
 from app.services.email.email import EmailSendError
 from app.services.user import UserAlreadyExistsException
-from infrastructure.api.dependencies import user_service_dep
+from infrastructure.api.dependencies import (
+    user_service_dep,
+    subscription_service_dep,
+    answer_service_dep,
+)
 from settings.general import FRONTEND_URL
 
 logger = logging.getLogger(__name__)
@@ -24,6 +29,16 @@ class RequestEmailBody(BaseModel):
     email: EmailStr
 
 
+class DemoAnswerItem(BaseModel):
+    question_id: int
+    option_ids: list[int] = []
+
+
+class DemoData(BaseModel):
+    hashtag_ids: list[int] = []
+    answers: list[DemoAnswerItem] = []
+
+
 class RegisterCompleteBody(BaseModel):
     email: EmailStr
     password: str
@@ -33,6 +48,7 @@ class RegisterCompleteBody(BaseModel):
     gender: GenderEnum
     name: Optional[str] = None
     surname: Optional[str] = None
+    demo_data: Optional[DemoData] = None
 
 
 @router.post("/register/request-email", status_code=status.HTTP_200_OK)
@@ -96,8 +112,11 @@ async def verify_email_redirect(
 async def complete_registration(
     body: RegisterCompleteBody,
     service: user_service_dep,
+    subscription_service: subscription_service_dep,
+    answer_service: answer_service_dep,
 ):
-    """Step 2: After email activation, user submits password, country, birthday, gender. Username is auto-generated."""
+    """Step 2: After email activation, user submits password, country, birthday, gender. Username is auto-generated.
+    Optional demo_data migrates demo hashtags and answers into the new account."""
     try:
         new_user = await service.complete_registration(
             email=body.email,
@@ -109,6 +128,22 @@ async def complete_registration(
             name=body.name,
             surname=body.surname,
         )
+        if body.demo_data:
+            for hashtag_id in set(body.demo_data.hashtag_ids):
+                try:
+                    await subscription_service.subscribe(
+                        new_user, hashtag_id, SubscriptionTypeEnum.hashtag
+                    )
+                except Exception as e:
+                    logger.warning("Demo migration: failed to subscribe to hashtag %s: %s", hashtag_id, e)
+            if body.demo_data.answers:
+                try:
+                    await answer_service.create_answers_for_demo_migration(
+                        new_user,
+                        [{"question_id": a.question_id, "option_ids": a.option_ids} for a in body.demo_data.answers],
+                    )
+                except Exception as e:
+                    logger.exception("Demo migration: failed to migrate answers: %s", e)
         return UserResponse.from_user(new_user)
     except UserAlreadyExistsException as e:
         e.raise_http_exception()

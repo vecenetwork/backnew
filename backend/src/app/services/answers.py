@@ -241,6 +241,47 @@ class AnswerService:
 
         await self.answer_repo.delete(answer_id)
 
+    async def create_answers_for_demo_migration(
+        self, user: "User", answers: list[dict]
+    ) -> None:
+        """Create answers for demo migration. Skips demographic and active_till validation."""
+        for item in answers:
+            question_id = item["question_id"]
+            option_ids = item.get("option_ids") or item.get("options") or []
+            if not option_ids:
+                continue
+            try:
+                await self.answer_repo.get_by_user_and_question(user.id, question_id)
+            except Missing:
+                pass
+            else:
+                continue  # Already answered, skip
+            question = await self.question_repo.get_by_id(question_id, current_user=None)
+            options = await self.question_option_repo.get_by_ids(option_ids)
+            for opt in options:
+                if opt.question_id != question.id:
+                    raise OptionMismatchError(f"Option {opt.id} does not belong to question {question_id}")
+            if len(option_ids) > question.max_options:
+                raise TooManyOptionsError(f"Too many options for question {question_id}")
+            async with self.question_repo.db.begin_nested() as nested:
+                new_answer = await self.answer_repo.create(
+                    question_id=question_id, user_id=user.id, options=option_ids, commit=False
+                )
+                await self.question_repo.update(
+                    question_id, total_answers=QuestionORM.total_answers + 1, commit=False
+                )
+                all_options = await self.question_option_repo.get_by_question_id_with_lock(question_id)
+                selected_ids = set(option_ids)
+                total_selections = sum(o.count for o in all_options) + len(selected_ids)
+                for option in all_options:
+                    new_count = option.count + (1 if option.id in selected_ids else 0)
+                    new_pct = (new_count * 100.0 / total_selections) if total_selections > 0 else 0
+                    await self.question_option_repo.update(
+                        option.id, count=new_count, percentage=new_pct, commit=False
+                    )
+                await nested.commit()
+                await self.question_repo.db.commit()
+
     async def add_answer_options(
         self, answer_id: int, option_ids: list[int], user: "User"
     ):
