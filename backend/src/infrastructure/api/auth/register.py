@@ -10,6 +10,7 @@ from pydantic import BaseModel, EmailStr
 
 from app.exceptions import InvalidToken
 from app.schema.user import UserResponse, GenderEnum
+from app.services.email.email import EmailSendError
 from app.services.user import UserAlreadyExistsException
 from infrastructure.api.dependencies import user_service_dep
 from settings.general import FRONTEND_URL
@@ -47,6 +48,12 @@ async def request_registration_email(
         return {"message": "Activation email sent. Check your inbox."}
     except UserAlreadyExistsException as e:
         e.raise_http_exception()
+    except EmailSendError as e:
+        logger.exception("Email send failed: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Email service error: {e}",
+        )
     except Exception as e:
         logger.exception(e)
         raise HTTPException(
