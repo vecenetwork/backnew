@@ -30,8 +30,8 @@ def main():
     sql_file = project_root / "liquibase/changelog/sql/v/2025-08-20/01_new_hashtags.sql"
     sql = sql_file.read_text()
     sql = "\n".join(
-        l for l in sql.splitlines()
-        if not l.strip().startswith("--liquibase") and not l.strip().startswith("--changeset")
+        line for line in sql.splitlines()
+        if not line.strip().startswith("--liquibase") and not line.strip().startswith("--changeset")
     )
     # Исправляем ON CONFLICT для PostgreSQL
     sql = sql.replace("ON CONFLICT DO NOTHING", "ON CONFLICT (name) DO NOTHING")

@@ -14,7 +14,6 @@ if env_path.exists():
             os.environ[key.strip()] = value.strip().strip('"').strip("'")
 
 async def test():
-    import asyncio
     import asyncpg
 
     host = os.getenv("POSTGRES_HOST")
