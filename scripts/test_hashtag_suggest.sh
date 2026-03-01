@@ -1,5 +1,5 @@
 #!/bin/bash
-# Test POST /hashtags/pick (Gemini-based hashtag suggestion)
+# Test POST /hashtags/suggest (Gemini-based hashtag suggestion)
 # Requires: GOOGLE_API_KEY in .env, server running, valid user credentials
 
 BASE_URL="${BASE_URL:-http://localhost:8000/api}"
@@ -22,12 +22,12 @@ echo "=== Hashtag suggestion (Gemini) ==="
 echo "Question: $QUESTION"
 echo ""
 
-curl -s -X POST "${BASE_URL}/hashtags/pick" \
+curl -s -X POST "${BASE_URL}/hashtags/suggest" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"question_text\":\"$QUESTION\",\"options\":$OPTIONS}" \
   --max-time 30 | python3 -m json.tool 2>/dev/null || echo "Response (raw):" && \
-curl -s -X POST "${BASE_URL}/hashtags/pick" \
+curl -s -X POST "${BASE_URL}/hashtags/suggest" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"question_text\":\"$QUESTION\",\"options\":$OPTIONS}" \

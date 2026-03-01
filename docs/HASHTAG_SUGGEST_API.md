@@ -5,7 +5,7 @@
 ## Endpoint
 
 ```
-POST /api/hashtags/pick
+POST /api/hashtags/suggest
 ```
 
 **Auth:** Bearer token (обязательно)
@@ -38,7 +38,7 @@ POST /api/hashtags/pick
 ## Интеграция на фронтенде
 
 1. **Триггер:** после ввода первого слова в поле вопроса (debounce 300–500 ms)
-2. **Вызов:** при каждом изменении текста/опций — `POST /api/hashtags/pick` с текущими данными
+2. **Вызов:** при каждом изменении текста/опций — `POST /api/hashtags/suggest` с текущими данными
 3. **Отображение:** показать предложенные хештеги как chips/теги, пользователь может добавить или проигнорировать
 
 Пример (псевдокод):
@@ -47,7 +47,7 @@ POST /api/hashtags/pick
 // Debounce 400ms
 const suggestHashtags = debounce(async (questionText, options) => {
   if (!questionText.trim()) return [];
-  const res = await fetch('/api/hashtags/pick', {
+  const res = await fetch('/api/hashtags/suggest', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,

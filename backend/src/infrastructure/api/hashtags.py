@@ -29,9 +29,9 @@ async def get_hashtags(
 
 
 @router.post(
-    "/pick",
+    "/suggest",
     response_model=HashtagSuggestResponse,
-    description="Pick relevant hashtags for a question using AI (Gemini). Call after first word is entered.",
+    description="Suggest relevant hashtags for a question using AI (Gemini). Call after first word is entered.",
 )
 async def suggest_hashtags(
     token: token_dependency,

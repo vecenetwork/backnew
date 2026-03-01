@@ -16,13 +16,13 @@ class TagRequest(BaseModel):
 
 
 class HashtagSuggestRequest(BaseModel):
-    """Request body for POST /hashtags/pick."""
+    """Request body for POST /hashtags/suggest."""
 
     question_text: str
     options: list[str] = []
 
 
 class HashtagSuggestResponse(BaseModel):
-    """Response for POST /hashtags/pick."""
+    """Response for POST /hashtags/suggest."""
 
     hashtags: list[str]
