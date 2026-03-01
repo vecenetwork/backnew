@@ -30,7 +30,7 @@ def _parse_names_from_response(text: str) -> list[str]:
 
 
 def _filter_to_our_tags(suggested: list[str], name_to_canonical: dict[str, str]) -> list[str]:
-    """Keep only tags that exist in our DB. No fuzzy matching, no inventing."""
+    """Keep only tags that exist in our DB."""
     result: list[str] = []
     seen: set[str] = set()
     for s in suggested:
@@ -44,6 +44,35 @@ def _filter_to_our_tags(suggested: list[str], name_to_canonical: dict[str, str])
         if len(result) >= 7:
             break
     return result[:7]
+
+
+def _keyword_fallback(
+    question_text: str, options: list[str], all_names: list[str], max_hashtags: int = 7
+) -> list[str]:
+    """Fallback: match tags from our DB that appear in question/options. Only our tags, no inventing."""
+    combined = f"{question_text} {' '.join(options or [])}".lower()
+    words = re.findall(r"[a-z0-9]+", combined)
+    words = [w for w in words if len(w) >= 3]
+    if not combined.strip():
+        return []
+    matched = []
+    seen = set()
+    for name in all_names:
+        name_lower = name.lower()
+        if name_lower in combined:
+            if name not in seen:
+                seen.add(name)
+                matched.append(name)
+        else:
+            for w in words:
+                if w in name_lower or name_lower in w:
+                    if name not in seen:
+                        seen.add(name)
+                        matched.append(name)
+                    break
+        if len(matched) >= max_hashtags:
+            break
+    return matched[:max_hashtags]
 
 
 class HashtagSuggestionService:
@@ -82,7 +111,8 @@ class HashtagSuggestionService:
             return []
 
         if not GOOGLE_API_KEY:
-            return []
+            logger.info("Hashtag suggest: GOOGLE_API_KEY not set")
+            return _keyword_fallback(question_text, options or [], all_names, min(max_hashtags, 7))
 
         try:
             from google import genai
@@ -124,12 +154,15 @@ Return a JSON array of tag names."""
 
             if response and response.text:
                 suggested = _parse_names_from_response(response.text)
-                return _filter_to_our_tags(suggested, name_to_canonical)
+                result = _filter_to_our_tags(suggested, name_to_canonical)
+                if result:
+                    return result
+                logger.info("Hashtag suggest: Gemini returned %s, none matched our DB", suggested[:10])
 
         except Exception as e:
             logger.warning("Hashtag suggestion (Gemini) failed: %s", e)
 
-        return []
+        return _keyword_fallback(question_text, options or [], all_names, min(max_hashtags, 7))
 
 
 def build_hashtag_suggestion_service(hashtag_repo: "HashtagRepository") -> HashtagSuggestionService:
