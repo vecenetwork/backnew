@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-MODEL = "gemini-1.5-flash"
+MODEL = "gemini-2.0-flash"
 
 
 def _parse_names_from_response(text: str) -> list[str]:
@@ -128,8 +128,8 @@ class HashtagSuggestionService:
             options_str = "\n".join(f"- {o}" for o in (options or [])) if options else "(no options)"
             tag_list = "\n".join(all_names)
 
-            prompt = f"""You are a classification assistant.
-Your task is to label the user's input (Question + Options) with 1 to 7 tags from the provided "Allowed Tags" list.
+            prompt = f"""You are a smart classification assistant.
+Your task is to analyze the user's input (Question + Options) and assign 1 to 7 most relevant topic tags from the provided "Allowed Tags" list.
 
 Input:
 Question: "{question_text}"
@@ -139,12 +139,15 @@ Allowed Tags:
 {tag_list}
 
 Instructions:
-1. **Analyze Meaning:** Understand the core topic of the question. It might be in **English, Spanish, or any other language**.
-2. **Cross-Language Matching:** If the text is in Spanish (or another language), understand the *meaning* and find the corresponding *English* tags in the list.
-   - *Example:* "Quién ganará el mundial?" -> match with "Football", "Sports".
-3. **Select Tags:** Pick the most relevant tags from the "Allowed Tags" list.
-   - Prioritize specific tags over broad ones, but include both if relevant.
-   - If exact keywords don't match, use semantic relevance.
+1. **Deep Semantic Analysis:** Read the question and options carefully. Understand the underlying topic, context, and intent.
+   - It might be in **English, Spanish, or any other language**.
+   - If the input is not in English, translate the *meaning* to English internally to find the matching tags.
+2. **Smart Matching:** Find the best matching tags from the "Allowed Tags" list.
+   - Look for direct topic matches (e.g., "Messi" -> "Football").
+   - Look for broader category matches (e.g., "Bitcoin" -> "Finance", "Crypto").
+   - Look for related concepts (e.g., "Love" -> "Relationships", "Dating").
+3. **Select Tags:** Pick 1-7 tags that best describe the content.
+   - Prioritize specific tags, but include broader ones if they fit well.
 4. **Constraints:**
    - Return ONLY a JSON array of strings (e.g. ["Tag1", "Tag2"]).
    - Use **EXACT** names from the list. Do not invent new tags.
@@ -152,6 +155,7 @@ Instructions:
 
             logger.info("[hashtag] Calling Gemini: question=%r, options_count=%d, tags_count=%d",
                         question_text[:80], len(options or []), len(all_names))
+            print(f"[hashtag] DEBUG: Sending {len(all_names)} tags to Gemini. First 5: {all_names[:5]}")
 
             config = types.GenerateContentConfig(
                 temperature=0.1,
@@ -172,10 +176,13 @@ Instructions:
 
             raw_text = response.text if response else None
             logger.info("[hashtag] Gemini raw response: %r", raw_text[:200] if raw_text else None)
+            print(f"[hashtag] DEBUG: Gemini raw response: {raw_text}")
 
             if response and raw_text:
                 suggested = _parse_names_from_response(raw_text)
+                print(f"[hashtag] DEBUG: Parsed tags from Gemini: {suggested}")
                 result = _filter_to_our_tags(suggested, name_to_canonical)
+                print(f"[hashtag] DEBUG: Final filtered tags (matching DB): {result}")
                 logger.info("[hashtag] Gemini suggested=%s, filtered=%s", suggested[:10], result)
                 if result:
                     return result
