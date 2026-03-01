@@ -46,39 +46,58 @@ def _filter_to_our_tags(suggested: list[str], name_to_canonical: dict[str, str])
     return result[:7]
 
 
+def _tag_words(name: str) -> set[str]:
+    """Split tag into words: 'AbstractArt' -> {'abstract','art'}, 'World Cup' -> {'world','cup'}."""
+    # Split by spaces and by CamelCase
+    parts = re.split(r"[\s]+", name)
+    words: set[str] = set()
+    for p in parts:
+        # Split CamelCase: AbstractArt -> Abstract, Art
+        sub = re.findall(r"[A-Z]?[a-z0-9]+", p)
+        for s in sub:
+            if len(s) >= 2:
+                words.add(s.lower())
+    return words or {name.lower()}
+
+
 def _keyword_fallback(
     question_text: str, options: list[str], all_names: list[str], max_hashtags: int = 7
 ) -> list[str]:
-    """Fallback: strictly match tags from our DB that appear in question/options."""
+    """Fallback when Gemini fails: match tags from DB by keywords in question/options."""
     combined = f"{question_text} {' '.join(options or [])}".lower()
-    # Extract words with length >= 3 to avoid matching 'is', 'in', 'at'
-    words = set(re.findall(r"\b[a-z0-9]{3,}\b", combined))
-    
+    words = set(re.findall(r"\b[a-z0-9]{2,}\b", combined))  # words >= 2 chars
+
     if not words:
         return []
 
-    matched = []
-    seen = set()
-    
+    matched: list[tuple[int, str]] = []  # (score, name) for ordering
+    seen: set[str] = set()
+
     for name in all_names:
         name_lower = name.lower()
-        
-        # 1. Check if the full tag name appears as a substring in the text
-        # e.g. "World Cup" tag in "will argentina win the world cup"
-        if name_lower in combined:
-            if name not in seen:
-                seen.add(name)
-                matched.append(name)
-            continue
-            
-        # 2. Check if any significant word from the text matches the tag exactly
-        # e.g. "Sports" tag matches "sports" word
-        if name_lower in words:
-             if name not in seen:
-                seen.add(name)
-                matched.append(name)
+        score = 0
 
-    return matched[:max_hashtags]
+        # 1. Full tag as substring (strongest)
+        if name_lower in combined:
+            score = 10
+        # 2. Exact word match
+        elif name_lower in words:
+            score = 8
+        # 3. Tag word appears in text (e.g. "abstract" in text -> "AbstractArt")
+        else:
+            tag_words = _tag_words(name)
+            if tag_words & words:
+                score = 5
+            # 4. Any tag word as substring
+            elif any(tw in combined for tw in tag_words if len(tw) >= 3):
+                score = 3
+
+        if score > 0 and name not in seen:
+            seen.add(name)
+            matched.append((score, name))
+
+    matched.sort(key=lambda x: -x[0])
+    return [n for _, n in matched[:max_hashtags]]
 
 
 class HashtagSuggestionService:
@@ -189,7 +208,11 @@ Instructions:
                 logger.info("[hashtag] None of Gemini's tags matched our DB")
 
         except Exception as e:
-            logger.warning("[hashtag] Gemini failed: %s", e, exc_info=True)
+            err_msg = str(e)
+            if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
+                logger.warning("[hashtag] Gemini quota exceeded (429), using keyword fallback")
+            else:
+                logger.warning("[hashtag] Gemini failed: %s", e, exc_info=True)
 
         return _keyword_fallback(question_text, options or [], all_names, min(max_hashtags, 7))
 
