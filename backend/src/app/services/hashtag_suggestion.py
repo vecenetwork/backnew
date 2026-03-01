@@ -1,4 +1,4 @@
-"""Hashtag suggestion service using Google Gemini AI."""
+"""Hashtag suggestion: send question+options to Gemini, it picks from our tags only."""
 
 import json
 import logging
@@ -16,7 +16,7 @@ MODEL = "gemini-1.5-flash"
 
 
 def _parse_names_from_response(text: str) -> list[str]:
-    """Extract tag names from Gemini response."""
+    """Extract tag names from response."""
     text = text.strip()
     try:
         json_match = re.search(r"\[[\s\S]*?\]", text)
@@ -29,23 +29,15 @@ def _parse_names_from_response(text: str) -> list[str]:
     return [p.strip().strip('"') for p in parts if p.strip()]
 
 
-def _validate_and_map_to_canonical(
-    suggested: list[str], name_to_canonical: dict[str, str], all_names: list[str]
-) -> list[str]:
-    """Map suggested names to canonical DB names."""
+def _filter_to_our_tags(suggested: list[str], name_to_canonical: dict[str, str]) -> list[str]:
+    """Keep only tags that exist in our DB. No fuzzy matching, no inventing."""
     result: list[str] = []
     seen: set[str] = set()
     for s in suggested:
         key = s.strip().lstrip("#").strip('"')
         if not key:
             continue
-        key_lower = key.lower()
-        canonical = name_to_canonical.get(key_lower)
-        if not canonical and len(key_lower) >= 3:
-            canonical = next(
-                (n for n in all_names if n.lower().startswith(key_lower) or key_lower.startswith(n.lower())),
-                None,
-            )
+        canonical = name_to_canonical.get(key.lower())
         if canonical and canonical not in seen:
             seen.add(canonical)
             result.append(canonical)
@@ -55,7 +47,7 @@ def _validate_and_map_to_canonical(
 
 
 class HashtagSuggestionService:
-    """Suggests relevant hashtags for a question using Gemini."""
+    """Sends question+options to Gemini; it picks 1-7 tags from our list. Backend does not invent."""
 
     def __init__(self, hashtag_repo: "HashtagRepository"):
         self.hashtag_repo = hashtag_repo
@@ -63,7 +55,6 @@ class HashtagSuggestionService:
         self._name_to_canonical: dict[str, str] | None = None
 
     async def _get_all_hashtag_names(self) -> tuple[list[str], dict[str, str]]:
-        """Get all hashtag names and a case-insensitive lookup map."""
         if self._all_names_cache is not None:
             return self._all_names_cache, self._name_to_canonical or {}
 
@@ -72,34 +63,6 @@ class HashtagSuggestionService:
         self._name_to_canonical = {n.lower(): n for n in names}
         return names, self._name_to_canonical
 
-    def _keyword_fallback(
-        self, question_text: str, options: list[str], all_names: list[str], max_hashtags: int = 7
-    ) -> list[str]:
-        """Fallback: match hashtags whose names appear in question/options."""
-        combined = f"{question_text} {' '.join(options or [])}".lower()
-        words = re.findall(r"[a-z0-9]+", combined)
-        words = [w for w in words if len(w) >= 3]
-        if not combined.strip():
-            return []
-        matched = []
-        seen = set()
-        for name in all_names:
-            name_lower = name.lower()
-            if name_lower in combined:
-                if name not in seen:
-                    seen.add(name)
-                    matched.append(name)
-            else:
-                for w in words:
-                    if w in name_lower or name_lower in w:
-                        if name not in seen:
-                            seen.add(name)
-                            matched.append(name)
-                        break
-            if len(matched) >= max_hashtags:
-                break
-        return matched[:max_hashtags]
-
     async def suggest(
         self,
         question_text: str,
@@ -107,7 +70,8 @@ class HashtagSuggestionService:
         max_hashtags: int = 7,
     ) -> list[str]:
         """
-        Suggest 1-7 relevant hashtags from the DB for the given question and options.
+        Send full context (question + options) to Gemini. It picks 1-7 tags from our DB.
+        Backend returns only what Gemini returns; no fallback, no inventing.
         """
         question_text = (question_text or "").strip()
         if not question_text:
@@ -117,49 +81,55 @@ class HashtagSuggestionService:
         if not all_names:
             return []
 
-        result: list[str] = []
+        if not GOOGLE_API_KEY:
+            return []
 
-        if GOOGLE_API_KEY:
-            try:
-                from google import genai
-                from google.genai import types
+        try:
+            from google import genai
+            from google.genai import types
 
-                client = genai.Client(api_key=GOOGLE_API_KEY)
+            client = genai.Client(api_key=GOOGLE_API_KEY)
 
-                options_str = "\n".join(f"- {o}" for o in (options or [])) if options else "(no options)"
-                tag_list = "\n".join(all_names)
+            options_str = "\n".join(f"- {o}" for o in (options or [])) if options else "(no options)"
+            tag_list = "\n".join(all_names)
 
-                prompt = f"""QUESTION: {question_text}
+            prompt = f"""QUESTION: {question_text}
 
 ANSWER OPTIONS:
 {options_str}
 
 Pick 1-7 tags from the list below that best describe what this question is about. Use ONLY tags from the list. Copy names exactly.
 
-AVAILABLE TAGS:
+AVAILABLE TAGS (our database — pick only from here):
 {tag_list}
 
-Return a JSON array of tag names, e.g. ["Sports", "Music"]"""
+Return a JSON array of tag names."""
 
-                response = client.models.generate_content(
-                    model=MODEL,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        temperature=0,
-                    ),
-                )
-                if response and response.text:
-                    suggested = _parse_names_from_response(response.text)
-                    result = _validate_and_map_to_canonical(suggested, name_to_canonical, all_names)
-            except Exception as e:
-                logger.warning("Hashtag suggestion (Gemini) failed: %s", e)
-
-        if not result:
-            result = self._keyword_fallback(
-                question_text, options or [], all_names, min(max_hashtags, 7)
+            config = types.GenerateContentConfig(
+                temperature=0,
+                response_mime_type="application/json",
+                response_schema=types.Schema(
+                    type=types.Type.ARRAY,
+                    items=types.Schema(type=types.Type.STRING),
+                    min_items=0,
+                    max_items=7,
+                ),
             )
 
-        return result
+            response = client.models.generate_content(
+                model=MODEL,
+                contents=prompt,
+                config=config,
+            )
+
+            if response and response.text:
+                suggested = _parse_names_from_response(response.text)
+                return _filter_to_our_tags(suggested, name_to_canonical)
+
+        except Exception as e:
+            logger.warning("Hashtag suggestion (Gemini) failed: %s", e)
+
+        return []
 
 
 def build_hashtag_suggestion_service(hashtag_repo: "HashtagRepository") -> HashtagSuggestionService:
