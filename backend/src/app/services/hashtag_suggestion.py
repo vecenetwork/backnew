@@ -66,6 +66,34 @@ class HashtagSuggestionService:
                 result.append(canonical)
         return result[:7]  # Cap at 7
 
+    def _keyword_fallback(
+        self, question_text: str, options: list[str], all_names: list[str], max_hashtags: int = 7
+    ) -> list[str]:
+        """Fallback: match hashtags whose names appear in question/options, or vice versa."""
+        combined = f"{question_text} {' '.join(options or [])}".lower()
+        words = re.findall(r"[a-z0-9]+", combined)
+        words = [w for w in words if len(w) >= 3]
+        if not combined.strip():
+            return []
+        matched = []
+        seen = set()
+        for name in all_names:
+            name_lower = name.lower()
+            if name_lower in combined:
+                if name not in seen:
+                    seen.add(name)
+                    matched.append(name)
+            else:
+                for w in words:
+                    if w in name_lower or name_lower in w:
+                        if name not in seen:
+                            seen.add(name)
+                            matched.append(name)
+                        break
+            if len(matched) >= max_hashtags:
+                break
+        return matched[:max_hashtags]
+
     async def suggest(
         self,
         question_text: str,
@@ -74,12 +102,8 @@ class HashtagSuggestionService:
     ) -> list[str]:
         """
         Suggest 1-7 relevant hashtags from the DB for the given question and options.
-        Returns only hashtags that exist in the database.
+        Uses Gemini when available; falls back to keyword matching otherwise.
         """
-        if not GOOGLE_API_KEY:
-            logger.warning("GOOGLE_API_KEY not set; hashtag suggestion disabled")
-            return []
-
         question_text = (question_text or "").strip()
         if not question_text:
             return []
@@ -88,16 +112,19 @@ class HashtagSuggestionService:
         if not all_names:
             return []
 
-        try:
-            import google.generativeai as genai
+        result: list[str] = []
 
-            genai.configure(api_key=GOOGLE_API_KEY)
-            model = genai.GenerativeModel("gemini-1.5-flash")
+        if GOOGLE_API_KEY:
+            try:
+                import google.generativeai as genai
 
-            options_str = "\n".join(f"- {o}" for o in (options or [])[:20]) if options else "(none)"
-            hashtag_list_str = ", ".join(all_names[:1500])  # Limit token size
+                genai.configure(api_key=GOOGLE_API_KEY)
+                model = genai.GenerativeModel("gemini-1.5-flash")
 
-            prompt = f"""You are a hashtag selector for a social polling app. The user is writing a question with answer options.
+                options_str = "\n".join(f"- {o}" for o in (options or [])[:20]) if options else "(none)"
+                hashtag_list_str = ", ".join(all_names[:1500])  # Limit token size
+
+                prompt = f"""You are a hashtag selector for a social polling app. The user is writing a question with answer options.
 
 Question: {question_text}
 
@@ -110,16 +137,19 @@ Available hashtags (you MUST pick ONLY from this exact list, use exact names):
 Task: Select 1 to {min(max_hashtags, 7)} most relevant hashtags from the list above. Avoid irrelevant ones.
 Return a JSON array of hashtag names only, e.g. ["Music", "Art"]. No explanations."""
 
-            response = model.generate_content(prompt)
-            if not response or not response.text:
-                return []
+                response = model.generate_content(prompt)
+                if response and response.text:
+                    suggested = _parse_hashtag_list_from_response(response.text)
+                    result = self._validate_and_filter(suggested, name_to_canonical)
+            except Exception as e:
+                logger.warning("Hashtag suggestion (Gemini) failed: %s", e)
 
-            suggested = _parse_hashtag_list_from_response(response.text)
-            return self._validate_and_filter(suggested, name_to_canonical)
+        if not result:
+            result = self._keyword_fallback(
+                question_text, options or [], all_names, min(max_hashtags, 7)
+            )
 
-        except Exception as e:
-            logger.exception("Hashtag suggestion failed: %s", e)
-            return []
+        return result
 
 
 def build_hashtag_suggestion_service(hashtag_repo: "HashtagRepository") -> HashtagSuggestionService:
