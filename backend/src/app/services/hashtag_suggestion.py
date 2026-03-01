@@ -1,10 +1,11 @@
 """Hashtag suggestion service using Google Gemini AI (new google-genai SDK)."""
 
+import hashlib
 import json
 import logging
 import os
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from infrastructure.repository.hashtag import HashtagRepository
@@ -12,6 +13,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+MODEL = "gemini-1.5-flash"
+CACHE_TTL = "86400s"  # 24 hours
 
 SYSTEM_INSTRUCTION = """You are a hashtag selector. Choose 1 to 7 tags from the list provided.
 Rules: Return ONLY a JSON array of tag names. Copy names EXACTLY as written in the list. Do not invent or modify names.
@@ -64,6 +67,44 @@ class HashtagSuggestionService:
         self.hashtag_repo = hashtag_repo
         self._all_names_cache: list[str] | None = None
         self._name_to_canonical: dict[str, str] | None = None
+        self._gemini_cache_name: str | None = None
+        self._gemini_cache_tags_hash: str | None = None
+
+    async def _get_or_create_gemini_cache(self, all_names: list[str]) -> Optional[str]:
+        """Create or reuse Gemini context cache with full tag list. Returns cache name or None."""
+        if not GOOGLE_API_KEY:
+            return None
+        tags_hash = hashlib.sha256("|".join(sorted(all_names)).encode()).hexdigest()
+        if self._gemini_cache_name and self._gemini_cache_tags_hash == tags_hash:
+            return self._gemini_cache_name
+        try:
+            from google import genai
+            from google.genai import types
+
+            client = genai.Client(api_key=GOOGLE_API_KEY)
+            tag_list = "\n".join(sorted(all_names))
+            cached_content = (
+                f"TAGS (pick 1-7, copy names exactly):\n{tag_list}\n\n"
+                "Use ONLY these tags. Return JSON array of tag names."
+            )
+            cache = client.caches.create(
+                model=MODEL,
+                config=types.CreateCachedContentConfig(
+                    display_name="vece-hashtags",
+                    system_instruction=SYSTEM_INSTRUCTION,
+                    contents=[types.Content(parts=[types.Part(text=cached_content)])],
+                    ttl=CACHE_TTL,
+                ),
+            )
+            self._gemini_cache_name = cache.name
+            self._gemini_cache_tags_hash = tags_hash
+            logger.info("Gemini hashtag cache created: %s", cache.name)
+            return cache.name
+        except Exception as e:
+            logger.warning("Gemini cache create failed: %s", e)
+            self._gemini_cache_name = None
+            self._gemini_cache_tags_hash = None
+            return None
 
     async def _get_all_hashtag_names(self) -> tuple[list[str], dict[str, str]]:
         """Get all hashtag names and a case-insensitive lookup map."""
@@ -129,36 +170,43 @@ class HashtagSuggestionService:
                 from google.genai import types
 
                 client = genai.Client(api_key=GOOGLE_API_KEY)
-                # Hybrid: keyword-matched tags first, then fill with rest (so relevant tags are in the list)
-                keyword_candidates = self._keyword_fallback(question_text, options or [], all_names, 50)
-                other_names = [n for n in all_names if n not in keyword_candidates]
-                # Send up to 400: keyword matches + others (ensures Sports, Music etc. are included when relevant)
-                candidate_set = list(dict.fromkeys(keyword_candidates + other_names))[:400]
-                tag_list = "\n".join(candidate_set) if candidate_set else "\n".join(all_names[:400])
+                cache_name = await self._get_or_create_gemini_cache(all_names)
 
                 options_str = "\n".join(f"- {o}" for o in (options or [])[:20]) if options else "(none)"
-
-                prompt = f"""TAGS (pick 1-7, copy names exactly):
-{tag_list}
-
-QUESTION: {question_text}
+                prompt = f"""QUESTION: {question_text}
 OPTIONS: {options_str}
 
 Return JSON array of tag names. Example: ["Sports", "Music"]"""
 
-                response = client.models.generate_content(
-                    model="gemini-1.5-flash",
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
+                if cache_name:
+                    config = types.GenerateContentConfig(
+                        cached_content=cache_name,
+                        temperature=0.3,
+                    )
+                else:
+                    tag_list = "\n".join(all_names[:400])
+                    prompt = f"""TAGS (pick 1-7, copy names exactly):
+{tag_list}
+
+{prompt}"""
+                    config = types.GenerateContentConfig(
                         system_instruction=SYSTEM_INSTRUCTION,
                         temperature=0.3,
-                    ),
+                    )
+
+                response = client.models.generate_content(
+                    model=MODEL,
+                    contents=prompt,
+                    config=config,
                 )
                 if response and response.text:
                     suggested = _parse_names_from_response(response.text)
                     result = _validate_and_map_to_canonical(suggested, name_to_canonical, all_names)
             except Exception as e:
                 logger.warning("Hashtag suggestion (Gemini) failed: %s", e)
+                if "cached" in str(e).lower() or "cache" in str(e).lower():
+                    self._gemini_cache_name = None
+                    self._gemini_cache_tags_hash = None
 
         # Keyword fallback when Gemini returns empty or is not configured
         if not result:
