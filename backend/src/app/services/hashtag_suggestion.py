@@ -133,12 +133,15 @@ class HashtagSuggestionService:
 Answer options:
 {options_str}
 
-Identify the topics. Pick 1-7 tags from the list below that best match. Use ONLY tags from the list. Copy names exactly.
+Task: Analyze the semantic meaning of the question and options. Identify the core topics, themes, and entities (e.g., specific sports, countries, technologies).
+Select 1-7 tags from the 'Available Tags' list below that best represent these topics.
+- Match based on meaning, not just keywords (e.g., if the question is about 'Messi', pick 'Football' and 'Sports' even if those words are not in the text).
+- Select tags that cover different aspects of the question (broad and specific).
+- Use ONLY tags from the provided list.
+- Return a JSON array of strings (exact tag names).
 
-Tags:
-{tag_list}
-
-Return JSON array of tag names, e.g. ["Sports", "Music"]"""
+Available Tags:
+{tag_list}"""
 
             logger.info("[hashtag] Calling Gemini: question=%r, options_count=%d, tags_count=%d",
                         question_text[:80], len(options or []), len(all_names))
