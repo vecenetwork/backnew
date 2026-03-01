@@ -136,6 +136,7 @@ Answer options:
 Task: Analyze the semantic meaning of the question and options. Identify the core topics, themes, and entities (e.g., specific sports, countries, technologies).
 Select 1-7 tags from the 'Available Tags' list below that best represent these topics.
 - Match based on meaning, not just keywords (e.g., if the question is about 'Messi', pick 'Football' and 'Sports' even if those words are not in the text).
+- The question may be in ANY language. Analyze its meaning and map it to the corresponding English tags in the list.
 - Select tags that cover different aspects of the question (broad and specific).
 - Use ONLY tags from the provided list.
 - Return a JSON array of strings (exact tag names).
