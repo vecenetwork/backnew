@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-MODEL = "gemini-1.5-flash"
+MODEL = "gemini-2.0-flash"
 
 
 def _parse_names_from_response(text: str) -> list[str]:
@@ -49,29 +49,35 @@ def _filter_to_our_tags(suggested: list[str], name_to_canonical: dict[str, str])
 def _keyword_fallback(
     question_text: str, options: list[str], all_names: list[str], max_hashtags: int = 7
 ) -> list[str]:
-    """Fallback: match tags from our DB that appear in question/options. Only our tags, no inventing."""
+    """Fallback: strictly match tags from our DB that appear in question/options."""
     combined = f"{question_text} {' '.join(options or [])}".lower()
-    words = re.findall(r"[a-z0-9]+", combined)
-    words = [w for w in words if len(w) >= 3]
-    if not combined.strip():
+    # Extract words with length >= 3 to avoid matching 'is', 'in', 'at'
+    words = set(re.findall(r"\b[a-z0-9]{3,}\b", combined))
+    
+    if not words:
         return []
+
     matched = []
     seen = set()
+    
     for name in all_names:
         name_lower = name.lower()
+        
+        # 1. Check if the full tag name appears as a substring in the text
+        # e.g. "World Cup" tag in "will argentina win the world cup"
         if name_lower in combined:
             if name not in seen:
                 seen.add(name)
                 matched.append(name)
-        else:
-            for w in words:
-                if w in name_lower or name_lower in w:
-                    if name not in seen:
-                        seen.add(name)
-                        matched.append(name)
-                    break
-        if len(matched) >= max_hashtags:
-            break
+            continue
+            
+        # 2. Check if any significant word from the text matches the tag exactly
+        # e.g. "Sports" tag matches "sports" word
+        if name_lower in words:
+             if name not in seen:
+                seen.add(name)
+                matched.append(name)
+
     return matched[:max_hashtags]
 
 
