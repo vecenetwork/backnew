@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-MODEL = "gemini-2.0-flash"
+MODEL = "gemini-1.5-flash"
 
 
 def _parse_names_from_response(text: str) -> list[str]:
