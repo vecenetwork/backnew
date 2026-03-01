@@ -12,7 +12,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-MODEL = "gemini-1.5-flash"
+# Best model: 2.5 Flash (price-performance). Fallback to 1.5 Flash if 404.
+MODELS = ["gemini-2.5-flash", "gemini-1.5-flash"]
 
 
 def _parse_names_from_response(text: str) -> list[str]:
@@ -111,22 +112,34 @@ Return a JSON array of tag names, e.g. ["Football", "Sports"]. Use only names fr
                     type=types.Type.ARRAY,
                     items=types.Schema(type=types.Type.STRING),
                     min_items=0,
-                    max_items=7,
+                    max_items=min(max_hashtags, 7),
                 ),
             )
 
-            response = client.models.generate_content(
-                model=MODEL,
-                contents=prompt,
-                config=config,
-            )
+            last_error: Exception | None = None
+            for model in MODELS:
+                try:
+                    response = client.models.generate_content(
+                        model=model,
+                        contents=prompt,
+                        config=config,
+                    )
+                    raw_text = response.text if response else None
+                    if response and raw_text:
+                        suggested = _parse_names_from_response(raw_text)
+                        result = _filter_to_our_tags(suggested, name_to_canonical)
+                        if result:
+                            return result
+                except Exception as e:
+                    last_error = e
+                    err_str = str(e)
+                    if "404" in err_str or "NOT_FOUND" in err_str:
+                        logger.info("[hashtag] Model %s not available, trying next", model)
+                        continue
+                    raise
 
-            raw_text = response.text if response else None
-            if response and raw_text:
-                suggested = _parse_names_from_response(raw_text)
-                result = _filter_to_our_tags(suggested, name_to_canonical)
-                if result:
-                    return result
+            if last_error:
+                raise last_error
 
         except Exception as e:
             logger.warning("[hashtag] Gemini failed: %s", e)
