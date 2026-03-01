@@ -21,8 +21,8 @@ boto3>=1.37.1
 pillow>=11.1.0
 pillow-heif>=0.20.0
 
-# ML/AI
-google-generativeai>=0.8.0
+# ML/AI (new SDK: context caching, system instructions)
+google-genai>=1.0.0
 scikit-learn>=1.6.1
 
 # Utils
