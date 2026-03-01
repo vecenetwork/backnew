@@ -50,21 +50,35 @@ class HashtagSuggestionService:
         self._name_to_canonical = {n.lower(): n for n in names}
         return names, self._name_to_canonical
 
-    def _validate_and_filter(self, suggested: list[str], name_to_canonical: dict[str, str]) -> list[str]:
-        """Return only hashtags that exist in DB, preserving order, deduplicated."""
+    def _validate_and_filter(
+        self, suggested: list[str], name_to_canonical: dict[str, str], all_names: list[str]
+    ) -> list[str]:
+        """Return only hashtags that exist in DB. Exact match first, then fuzzy (e.g. Sport→Sports)."""
         seen: set[str] = set()
         result: list[str] = []
+
         for s in suggested:
-            key = s.strip()
+            key = s.strip().lstrip("#")
             if not key:
                 continue
-            # Normalize: remove # if present, try case-insensitive match
-            key_clean = key.lstrip("#")
-            canonical = name_to_canonical.get(key_clean.lower())
+            key_lower = key.lower()
+            canonical = name_to_canonical.get(key_lower)
+            if not canonical and len(key_lower) >= 3:
+                # Fuzzy: "Sport" → "Sports" when model returns slight variant (prefix match only)
+                canonical = next(
+                    (
+                        n
+                        for n in all_names
+                        if n.lower().startswith(key_lower) or key_lower.startswith(n.lower())
+                    ),
+                    None,
+                )
             if canonical and canonical not in seen:
                 seen.add(canonical)
                 result.append(canonical)
-        return result[:7]  # Cap at 7
+            if len(result) >= 7:
+                break
+        return result[:7]
 
     def _keyword_fallback(
         self, question_text: str, options: list[str], all_names: list[str], max_hashtags: int = 7
@@ -124,27 +138,32 @@ class HashtagSuggestionService:
                 options_str = "\n".join(f"- {o}" for o in (options or [])[:20]) if options else "(none)"
                 hashtag_list_str = ", ".join(all_names[:1500])  # Limit token size
 
-                prompt = f"""You are a hashtag selector for a social polling app. The user is writing a question with answer options.
+                prompt = f"""You are a hashtag selector. You MUST choose 1 to {min(max_hashtags, 7)} hashtags from the EXACT list below. Do NOT invent or modify any tag names.
 
-Question: {question_text}
-
-Answer options:
-{options_str}
-
-Available hashtags (you MUST pick ONLY from this exact list, use exact names):
+AVAILABLE HASHTAGS (choose ONLY from this list, copy names exactly):
 {hashtag_list_str}
 
-Task: Select 1 to {min(max_hashtags, 7)} most relevant hashtags from the list above. Avoid irrelevant ones.
-Return a JSON array of hashtag names only, e.g. ["Music", "Art"]. No explanations."""
+QUESTION:
+{question_text}
+
+ANSWER OPTIONS:
+{options_str}
+
+INSTRUCTIONS:
+1. Read the question and answer options.
+2. Pick 1 to 7 most relevant hashtags from the AVAILABLE HASHTAGS list above.
+3. Use the EXACT spelling from the list (e.g. if the list has "Sports", write "Sports" not "Sport").
+4. Return ONLY a JSON array of strings, nothing else. Example: ["Sports", "Entertainment"]"""
 
                 response = model.generate_content(prompt)
                 if response and response.text:
                     suggested = _parse_hashtag_list_from_response(response.text)
-                    result = self._validate_and_filter(suggested, name_to_canonical)
+                    result = self._validate_and_filter(suggested, name_to_canonical, all_names)
             except Exception as e:
                 logger.warning("Hashtag suggestion (Gemini) failed: %s", e)
 
-        if not result:
+        # Keyword fallback only when Gemini is not configured
+        if not result and not GOOGLE_API_KEY:
             result = self._keyword_fallback(
                 question_text, options or [], all_names, min(max_hashtags, 7)
             )
