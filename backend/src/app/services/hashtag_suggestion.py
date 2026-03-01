@@ -111,7 +111,7 @@ class HashtagSuggestionService:
             return []
 
         if not GOOGLE_API_KEY:
-            logger.info("Hashtag suggest: GOOGLE_API_KEY not set")
+            logger.info("[hashtag] GOOGLE_API_KEY not set, using keyword fallback")
             return _keyword_fallback(question_text, options or [], all_names, min(max_hashtags, 7))
 
         try:
@@ -119,21 +119,23 @@ class HashtagSuggestionService:
             from google.genai import types
 
             client = genai.Client(api_key=GOOGLE_API_KEY)
-
             options_str = "\n".join(f"- {o}" for o in (options or [])) if options else "(no options)"
             tag_list = "\n".join(all_names)
 
-            prompt = f"""QUESTION: {question_text}
+            prompt = f"""Question: {question_text}
 
-ANSWER OPTIONS:
+Answer options:
 {options_str}
 
-Pick 1-7 tags from the list below that best describe what this question is about. Use ONLY tags from the list. Copy names exactly.
+Identify the topics. Pick 1-7 tags from the list below that best match. Use ONLY tags from the list. Copy names exactly.
 
-AVAILABLE TAGS (our database — pick only from here):
+Tags:
 {tag_list}
 
-Return a JSON array of tag names."""
+Return JSON array of tag names, e.g. ["Sports", "Music"]"""
+
+            logger.info("[hashtag] Calling Gemini: question=%r, options_count=%d, tags_count=%d",
+                        question_text[:80], len(options or []), len(all_names))
 
             config = types.GenerateContentConfig(
                 temperature=0,
@@ -152,15 +154,19 @@ Return a JSON array of tag names."""
                 config=config,
             )
 
-            if response and response.text:
-                suggested = _parse_names_from_response(response.text)
+            raw_text = response.text if response else None
+            logger.info("[hashtag] Gemini raw response: %r", raw_text[:200] if raw_text else None)
+
+            if response and raw_text:
+                suggested = _parse_names_from_response(raw_text)
                 result = _filter_to_our_tags(suggested, name_to_canonical)
+                logger.info("[hashtag] Gemini suggested=%s, filtered=%s", suggested[:10], result)
                 if result:
                     return result
-                logger.info("Hashtag suggest: Gemini returned %s, none matched our DB", suggested[:10])
+                logger.info("[hashtag] None of Gemini's tags matched our DB")
 
         except Exception as e:
-            logger.warning("Hashtag suggestion (Gemini) failed: %s", e)
+            logger.warning("[hashtag] Gemini failed: %s", e, exc_info=True)
 
         return _keyword_fallback(question_text, options or [], all_names, min(max_hashtags, 7))
 

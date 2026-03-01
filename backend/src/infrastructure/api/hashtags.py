@@ -1,6 +1,10 @@
+import logging
+
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.schema.hashtags import Hashtag, HashtagSuggestRequest, HashtagSuggestResponse
+
+logger = logging.getLogger(__name__)
 from app.exceptions import Missing
 from infrastructure.api.dependencies import (
     hashtag_service_dep,
@@ -40,10 +44,12 @@ async def suggest_hashtags(
     body: HashtagSuggestRequest,
 ) -> HashtagSuggestResponse:
     _ = current_user
+    logger.info("[hashtag] Request: question=%r, options=%s", (body.question_text or "")[:60], body.options)
     hashtags = await hashtag_suggestion_service.suggest(
         question_text=body.question_text,
         options=body.options,
     )
+    logger.info("[hashtag] Response: %d tags %s", len(hashtags), hashtags[:5])
     return HashtagSuggestResponse(hashtags=hashtags)
 
 
