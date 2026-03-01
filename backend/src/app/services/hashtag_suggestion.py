@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-MODEL = "gemini-2.0-flash"
+MODEL = "gemini-1.5-flash"
 
 
 def _parse_names_from_response(text: str) -> list[str]:
@@ -139,13 +139,15 @@ Allowed Tags:
 {tag_list}
 
 Instructions:
-1. Analyze the input text. It may be in English, Spanish, or another language.
-2. Identify the core topics (e.g. sports, finance, technology).
-3. Select the most relevant tags from the "Allowed Tags" list.
-   - If the input is not in English, match its meaning to the English tags in the list.
-   - Example: "fútbol" -> match with "Football", "Sports".
-4. Return a JSON array of strings (e.g. ["Tag1", "Tag2"]).
-5. Use ONLY tags from the list. Exact matches only.
+1. **Analyze Meaning:** Understand the core topic of the question. It might be in **English, Spanish, or any other language**.
+2. **Cross-Language Matching:** If the text is in Spanish (or another language), understand the *meaning* and find the corresponding *English* tags in the list.
+   - *Example:* "Quién ganará el mundial?" -> match with "Football", "Sports".
+3. **Select Tags:** Pick the most relevant tags from the "Allowed Tags" list.
+   - Prioritize specific tags over broad ones, but include both if relevant.
+   - If exact keywords don't match, use semantic relevance.
+4. **Constraints:**
+   - Return ONLY a JSON array of strings (e.g. ["Tag1", "Tag2"]).
+   - Use **EXACT** names from the list. Do not invent new tags.
 """
 
             logger.info("[hashtag] Calling Gemini: question=%r, options_count=%d, tags_count=%d",
@@ -160,24 +162,6 @@ Instructions:
                     min_items=0,
                     max_items=7,
                 ),
-                safety_settings=[
-                    types.SafetySetting(
-                        category="HARM_CATEGORY_HATE_SPEECH",
-                        threshold="BLOCK_NONE",
-                    ),
-                    types.SafetySetting(
-                        category="HARM_CATEGORY_DANGEROUS_CONTENT",
-                        threshold="BLOCK_NONE",
-                    ),
-                    types.SafetySetting(
-                        category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                        threshold="BLOCK_NONE",
-                    ),
-                    types.SafetySetting(
-                        category="HARM_CATEGORY_HARASSMENT",
-                        threshold="BLOCK_NONE",
-                    ),
-                ]
             )
 
             response = client.models.generate_content(
