@@ -128,32 +128,57 @@ class HashtagSuggestionService:
             options_str = "\n".join(f"- {o}" for o in (options or [])) if options else "(no options)"
             tag_list = "\n".join(all_names)
 
-            prompt = f"""You are an intelligent classifier. Your goal is to select 1 to 7 tags from the provided list that best describe the user's question.
+            prompt = f"""You are a classification assistant.
+Your task is to label the user's input (Question + Options) with 1 to 7 tags from the provided "Allowed Tags" list.
 
-**Context:**
-- Question: "{question_text}"
-- Options: {options_str}
+Input:
+Question: "{question_text}"
+Options: {options_str}
 
-**Instructions:**
-1. **Analyze Meaning:** Understand the core topic of the question. It might be in **English, Spanish, or any other language**.
-2. **Cross-Language Matching:** If the text is in Spanish (or another language), understand the *meaning* and find the corresponding *English* tags in the list.
-   - *Example:* "Quién ganará el mundial?" -> Match with "Football", "Sports", "WorldCup".
-   - *Example:* "Best way to invest money?" -> Match with "Finance", "Investing", "Money".
-3. **Select Tags:** Pick tags from the "Available Tags" list below.
-   - Prioritize specific tags (e.g., "Bitcoin") over broad ones (e.g., "Technology"), but include both if relevant.
-   - If exact keywords don't match, use semantic relevance (e.g., "Apple" -> "Technology", "Smartphones").
-4. **Constraints:**
-   - Return ONLY a JSON array of strings.
-   - Use **EXACT** names from the list. Do not invent new tags.
+Allowed Tags:
+{tag_list}
 
-**Available Tags:**
-{tag_list}"""
+Instructions:
+1. Analyze the input text. It may be in English, Spanish, or another language.
+2. Identify the core topics (e.g. sports, finance, technology).
+3. Select the most relevant tags from the "Allowed Tags" list.
+   - If the input is not in English, match its meaning to the English tags in the list.
+   - Example: "fútbol" -> match with "Football", "Sports".
+4. Return a JSON array of strings (e.g. ["Tag1", "Tag2"]).
+5. Use ONLY tags from the list. Exact matches only.
+"""
 
             logger.info("[hashtag] Calling Gemini: question=%r, options_count=%d, tags_count=%d",
                         question_text[:80], len(options or []), len(all_names))
 
             config = types.GenerateContentConfig(
                 temperature=0.1,
+                response_mime_type="application/json",
+                response_schema=types.Schema(
+                    type=types.Type.ARRAY,
+                    items=types.Schema(type=types.Type.STRING),
+                    min_items=0,
+                    max_items=7,
+                ),
+                safety_settings=[
+                    types.SafetySetting(
+                        category="HARM_CATEGORY_HATE_SPEECH",
+                        threshold="BLOCK_NONE",
+                    ),
+                    types.SafetySetting(
+                        category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                        threshold="BLOCK_NONE",
+                    ),
+                    types.SafetySetting(
+                        category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                        threshold="BLOCK_NONE",
+                    ),
+                    types.SafetySetting(
+                        category="HARM_CATEGORY_HARASSMENT",
+                        threshold="BLOCK_NONE",
+                    ),
+                ]
+            )
                 response_mime_type="application/json",
                 response_schema=types.Schema(
                     type=types.Type.ARRAY,
