@@ -1,4 +1,4 @@
-"""Hashtag suggestion: send question+options to Gemini, it picks from our tags only."""
+"""Hashtag suggestion: Gemini picks 1-7 tags from our DB list. No fallback."""
 
 import json
 import logging
@@ -16,7 +16,7 @@ MODEL = "gemini-2.0-flash"
 
 
 def _parse_names_from_response(text: str) -> list[str]:
-    """Extract tag names from response."""
+    """Extract tag names from Gemini response."""
     text = text.strip()
     try:
         json_match = re.search(r"\[[\s\S]*?\]", text)
@@ -30,7 +30,7 @@ def _parse_names_from_response(text: str) -> list[str]:
 
 
 def _filter_to_our_tags(suggested: list[str], name_to_canonical: dict[str, str]) -> list[str]:
-    """Keep only tags that exist in our DB."""
+    """Keep only tags that exist in our DB, return in canonical form."""
     result: list[str] = []
     seen: set[str] = set()
     for s in suggested:
@@ -46,62 +46,8 @@ def _filter_to_our_tags(suggested: list[str], name_to_canonical: dict[str, str])
     return result[:7]
 
 
-def _tag_words(name: str) -> set[str]:
-    """Split tag into words: 'AbstractArt' -> {'abstract','art'}, 'World Cup' -> {'world','cup'}."""
-    # Split by spaces and by CamelCase
-    parts = re.split(r"[\s]+", name)
-    words: set[str] = set()
-    for p in parts:
-        # Split CamelCase: AbstractArt -> Abstract, Art
-        sub = re.findall(r"[A-Z]?[a-z0-9]+", p)
-        for s in sub:
-            if len(s) >= 2:
-                words.add(s.lower())
-    return words or {name.lower()}
-
-
-def _keyword_fallback(
-    question_text: str, options: list[str], all_names: list[str], max_hashtags: int = 7
-) -> list[str]:
-    """Fallback when Gemini fails: match tags from DB by keywords in question/options."""
-    combined = f"{question_text} {' '.join(options or [])}".lower()
-    words = set(re.findall(r"\b[a-z0-9]{2,}\b", combined))  # words >= 2 chars
-
-    if not words:
-        return []
-
-    matched: list[tuple[int, str]] = []  # (score, name) for ordering
-    seen: set[str] = set()
-
-    for name in all_names:
-        name_lower = name.lower()
-        score = 0
-
-        # 1. Full tag as substring (strongest)
-        if name_lower in combined:
-            score = 10
-        # 2. Exact word match
-        elif name_lower in words:
-            score = 8
-        # 3. Tag word appears in text (e.g. "abstract" in text -> "AbstractArt")
-        else:
-            tag_words = _tag_words(name)
-            if tag_words & words:
-                score = 5
-            # 4. Any tag word as substring
-            elif any(tw in combined for tw in tag_words if len(tw) >= 3):
-                score = 3
-
-        if score > 0 and name not in seen:
-            seen.add(name)
-            matched.append((score, name))
-
-    matched.sort(key=lambda x: -x[0])
-    return [n for _, n in matched[:max_hashtags]]
-
-
 class HashtagSuggestionService:
-    """Sends question+options to Gemini; it picks 1-7 tags from our list. Backend does not invent."""
+    """Gemini picks 1-7 tags from our DB. Returns exact names for question creation."""
 
     def __init__(self, hashtag_repo: "HashtagRepository"):
         self.hashtag_repo = hashtag_repo
@@ -124,8 +70,8 @@ class HashtagSuggestionService:
         max_hashtags: int = 7,
     ) -> list[str]:
         """
-        Send full context (question + options) to Gemini. It picks 1-7 tags from our DB.
-        Backend returns only what Gemini returns; no fallback, no inventing.
+        Send question + options to Gemini with full tag list. Gemini returns 1-7
+        exact tag names from our DB. Backend returns them as-is for question creation.
         """
         question_text = (question_text or "").strip()
         if not question_text:
@@ -136,8 +82,8 @@ class HashtagSuggestionService:
             return []
 
         if not GOOGLE_API_KEY:
-            logger.info("[hashtag] GOOGLE_API_KEY not set, using keyword fallback")
-            return _keyword_fallback(question_text, options or [], all_names, min(max_hashtags, 7))
+            logger.warning("[hashtag] GOOGLE_API_KEY not set")
+            return []
 
         try:
             from google import genai
@@ -147,34 +93,16 @@ class HashtagSuggestionService:
             options_str = "\n".join(f"- {o}" for o in (options or [])) if options else "(no options)"
             tag_list = "\n".join(all_names)
 
-            prompt = f"""You are a smart classification assistant.
-Your task is to analyze the user's input (Question + Options) and assign 1 to 7 most relevant topic tags from the provided "Allowed Tags" list.
+            prompt = f"""You are a tag classifier. You know ALL our tags. Pick 1-7 most relevant for the content.
 
-Input:
 Question: "{question_text}"
-Options: {options_str}
+Options:
+{options_str}
 
-Allowed Tags:
+Our tags (use EXACT names only):
 {tag_list}
 
-Instructions:
-1. **Deep Semantic Analysis:** Read the question and options carefully. Understand the underlying topic, context, and intent.
-   - It might be in **English, Spanish, or any other language**.
-   - If the input is not in English, translate the *meaning* to English internally to find the matching tags.
-2. **Smart Matching:** Find the best matching tags from the "Allowed Tags" list.
-   - Look for direct topic matches (e.g., "Messi" -> "Football").
-   - Look for broader category matches (e.g., "Bitcoin" -> "Finance", "Crypto").
-   - Look for related concepts (e.g., "Love" -> "Relationships", "Dating").
-3. **Select Tags:** Pick 1-7 tags that best describe the content.
-   - Prioritize specific tags, but include broader ones if they fit well.
-4. **Constraints:**
-   - Return ONLY a JSON array of strings (e.g. ["Tag1", "Tag2"]).
-   - Use **EXACT** names from the list. Do not invent new tags.
-"""
-
-            logger.info("[hashtag] Calling Gemini: question=%r, options_count=%d, tags_count=%d",
-                        question_text[:80], len(options or []), len(all_names))
-            print(f"[hashtag] DEBUG: Sending {len(all_names)} tags to Gemini. First 5: {all_names[:5]}")
+Return a JSON array of tag names, e.g. ["Football", "Sports"]. Use only names from the list above."""
 
             config = types.GenerateContentConfig(
                 temperature=0.1,
@@ -194,27 +122,16 @@ Instructions:
             )
 
             raw_text = response.text if response else None
-            logger.info("[hashtag] Gemini raw response: %r", raw_text[:200] if raw_text else None)
-            print(f"[hashtag] DEBUG: Gemini raw response: {raw_text}")
-
             if response and raw_text:
                 suggested = _parse_names_from_response(raw_text)
-                print(f"[hashtag] DEBUG: Parsed tags from Gemini: {suggested}")
                 result = _filter_to_our_tags(suggested, name_to_canonical)
-                print(f"[hashtag] DEBUG: Final filtered tags (matching DB): {result}")
-                logger.info("[hashtag] Gemini suggested=%s, filtered=%s", suggested[:10], result)
                 if result:
                     return result
-                logger.info("[hashtag] None of Gemini's tags matched our DB")
 
         except Exception as e:
-            err_msg = str(e)
-            if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
-                logger.warning("[hashtag] Gemini quota exceeded (429), using keyword fallback")
-            else:
-                logger.warning("[hashtag] Gemini failed: %s", e, exc_info=True)
+            logger.warning("[hashtag] Gemini failed: %s", e)
 
-        return _keyword_fallback(question_text, options or [], all_names, min(max_hashtags, 7))
+        return []
 
 
 def build_hashtag_suggestion_service(hashtag_repo: "HashtagRepository") -> HashtagSuggestionService:
