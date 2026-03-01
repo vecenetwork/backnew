@@ -16,9 +16,13 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 MODEL = "gemini-1.5-flash"
 CACHE_TTL = "86400s"  # 24 hours
 
-SYSTEM_INSTRUCTION = """You are a hashtag selector. Choose 1 to 7 tags from the list provided.
-Rules: Return ONLY a JSON array of tag names. Copy names EXACTLY as written in the list. Do not invent or modify names.
-Example: ["Sports", "Music"]"""
+SYSTEM_INSTRUCTION = """You are a hashtag selector. Your task: analyze the question text and all answer options to understand what topics and themes they touch. Then pick 1 to 7 tags from the provided list that are MOST RELEVANT to these topics.
+
+Rules:
+- Return ONLY a JSON array of tag names. Copy names EXACTLY as written in the list.
+- Do not invent or modify names. Use only tags from the list.
+- Prioritize relevance: pick tags that best match the themes of the question and options.
+- Example: ["Sports", "Music"]"""
 
 
 def _parse_names_from_response(text: str) -> list[str]:
@@ -74,7 +78,9 @@ class HashtagSuggestionService:
         """Create or reuse Gemini context cache with full tag list. Returns cache name or None."""
         if not GOOGLE_API_KEY:
             return None
-        tags_hash = hashlib.sha256("|".join(sorted(all_names)).encode()).hexdigest()
+        tags_hash = hashlib.sha256(
+            (SYSTEM_INSTRUCTION + "|" + "|".join(sorted(all_names))).encode()
+        ).hexdigest()
         if self._gemini_cache_name and self._gemini_cache_tags_hash == tags_hash:
             return self._gemini_cache_name
         try:
@@ -84,7 +90,7 @@ class HashtagSuggestionService:
             client = genai.Client(api_key=GOOGLE_API_KEY)
             tag_list = "\n".join(sorted(all_names))
             cached_content = (
-                f"TAGS (pick 1-7, copy names exactly):\n{tag_list}\n\n"
+                f"AVAILABLE TAGS (pick 1-7 most relevant, copy names exactly):\n{tag_list}\n\n"
                 "Use ONLY these tags. Return JSON array of tag names."
             )
             cache = client.caches.create(
@@ -172,11 +178,16 @@ class HashtagSuggestionService:
                 client = genai.Client(api_key=GOOGLE_API_KEY)
                 cache_name = await self._get_or_create_gemini_cache(all_names)
 
-                options_str = "\n".join(f"- {o}" for o in (options or [])[:20]) if options else "(none)"
-                prompt = f"""QUESTION: {question_text}
-OPTIONS: {options_str}
+                options_str = "\n".join(f"- {o}" for o in (options or [])[:50]) if options else "(none)"
+                prompt = f"""Analyze this question and its answer options. Pick 1-7 tags from the list that best match the topics.
 
-Return JSON array of tag names. Example: ["Sports", "Music"]"""
+QUESTION (full text):
+{question_text}
+
+ANSWER OPTIONS (all variants):
+{options_str}
+
+Return JSON array of the most relevant tag names. Example: ["Sports", "Music"]"""
 
                 if cache_name:
                     config = types.GenerateContentConfig(
@@ -185,7 +196,7 @@ Return JSON array of tag names. Example: ["Sports", "Music"]"""
                     )
                 else:
                     tag_list = "\n".join(all_names[:400])
-                    prompt = f"""TAGS (pick 1-7, copy names exactly):
+                    prompt = f"""AVAILABLE TAGS (pick 1-7 most relevant, copy names exactly):
 {tag_list}
 
 {prompt}"""
