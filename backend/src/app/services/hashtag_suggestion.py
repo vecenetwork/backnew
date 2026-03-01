@@ -64,16 +64,16 @@ class HashtagSuggestionService:
             if canonical and canonical not in seen:
                 seen.add(canonical)
                 result.append(canonical)
-        return result[:10]  # Cap at 10
+        return result[:7]  # Cap at 7
 
     async def suggest(
         self,
         question_text: str,
         options: list[str],
-        max_hashtags: int = 10,
+        max_hashtags: int = 7,
     ) -> list[str]:
         """
-        Suggest 1-10 relevant hashtags from the DB for the given question and options.
+        Suggest 1-7 relevant hashtags from the DB for the given question and options.
         Returns only hashtags that exist in the database.
         """
         if not GOOGLE_API_KEY:
@@ -107,7 +107,7 @@ Answer options:
 Available hashtags (you MUST pick ONLY from this exact list, use exact names):
 {hashtag_list_str}
 
-Task: Select 1 to {min(max_hashtags, 10)} most relevant hashtags from the list above. Avoid irrelevant ones.
+Task: Select 1 to {min(max_hashtags, 7)} most relevant hashtags from the list above. Avoid irrelevant ones.
 Return a JSON array of hashtag names only, e.g. ["Music", "Art"]. No explanations."""
 
             response = model.generate_content(prompt)
