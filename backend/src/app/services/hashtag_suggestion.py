@@ -128,27 +128,32 @@ class HashtagSuggestionService:
             options_str = "\n".join(f"- {o}" for o in (options or [])) if options else "(no options)"
             tag_list = "\n".join(all_names)
 
-            prompt = f"""Question: {question_text}
+            prompt = f"""You are an intelligent classifier. Your goal is to select 1 to 7 tags from the provided list that best describe the user's question.
 
-Answer options:
-{options_str}
+**Context:**
+- Question: "{question_text}"
+- Options: {options_str}
 
-Task: Analyze the semantic meaning of the question and options. Identify the core topics, themes, and entities (e.g., specific sports, countries, technologies).
-Select 1-7 tags from the 'Available Tags' list below that best represent these topics.
-- Match based on meaning, not just keywords (e.g., if the question is about 'Messi', pick 'Football' and 'Sports' even if those words are not in the text).
-- The question may be in ANY language. Analyze its meaning and map it to the corresponding English tags in the list.
-- Select tags that cover different aspects of the question (broad and specific).
-- Use ONLY tags from the provided list.
-- Return a JSON array of strings (exact tag names).
+**Instructions:**
+1. **Analyze Meaning:** Understand the core topic of the question. It might be in **English, Spanish, or any other language**.
+2. **Cross-Language Matching:** If the text is in Spanish (or another language), understand the *meaning* and find the corresponding *English* tags in the list.
+   - *Example:* "Quién ganará el mundial?" -> Match with "Football", "Sports", "WorldCup".
+   - *Example:* "Best way to invest money?" -> Match with "Finance", "Investing", "Money".
+3. **Select Tags:** Pick tags from the "Available Tags" list below.
+   - Prioritize specific tags (e.g., "Bitcoin") over broad ones (e.g., "Technology"), but include both if relevant.
+   - If exact keywords don't match, use semantic relevance (e.g., "Apple" -> "Technology", "Smartphones").
+4. **Constraints:**
+   - Return ONLY a JSON array of strings.
+   - Use **EXACT** names from the list. Do not invent new tags.
 
-Available Tags:
+**Available Tags:**
 {tag_list}"""
 
             logger.info("[hashtag] Calling Gemini: question=%r, options_count=%d, tags_count=%d",
                         question_text[:80], len(options or []), len(all_names))
 
             config = types.GenerateContentConfig(
-                temperature=0,
+                temperature=0.1,
                 response_mime_type="application/json",
                 response_schema=types.Schema(
                     type=types.Type.ARRAY,
