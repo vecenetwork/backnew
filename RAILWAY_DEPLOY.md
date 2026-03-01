@@ -38,7 +38,7 @@
 | `POSTGRES_DB` | postgres |
 | `BASE_URL` | https://ТВОЙ-ДОМЕН.railway.app/api |
 | `FRONTEND_URL` | https://твой-фронт.vercel.app (или где хостится фронт) |
-| `GOOGLE_API_KEY` | AIzaSyA-Xy16R8OssUIpXBZngIqap6kjgK9GjKo |
+| `GOOGLE_API_KEY` | Ключ из [Google AI Studio](https://aistudio.google.com/apikey) — для подсказки хештегов (1–7 из нашего списка) |
 | `EMAIL_ADDRESS` | info@vece.ai |
 | `EMAIL_PASSWORD` | (если есть — пароль для SMTP) |
 

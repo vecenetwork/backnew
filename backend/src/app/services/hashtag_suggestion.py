@@ -138,9 +138,9 @@ class HashtagSuggestionService:
                 options_str = "\n".join(f"- {o}" for o in (options or [])[:20]) if options else "(none)"
                 hashtag_list_str = ", ".join(all_names[:1500])  # Limit token size
 
-                prompt = f"""You are a hashtag selector. You MUST choose 1 to {min(max_hashtags, 7)} hashtags from the EXACT list below. Do NOT invent or modify any tag names.
+                prompt = f"""You are a hashtag selector. Choose 1 to 7 hashtags from our list. Do NOT invent tags.
 
-AVAILABLE HASHTAGS (choose ONLY from this list, copy names exactly):
+OUR HASHTAG LIST (choose ONLY from here, copy names exactly):
 {hashtag_list_str}
 
 QUESTION:
@@ -149,11 +149,11 @@ QUESTION:
 ANSWER OPTIONS:
 {options_str}
 
-INSTRUCTIONS:
+RULES:
 1. Read the question and answer options.
-2. Pick 1 to 7 most relevant hashtags from the AVAILABLE HASHTAGS list above.
-3. Use the EXACT spelling from the list (e.g. if the list has "Sports", write "Sports" not "Sport").
-4. Return ONLY a JSON array of strings, nothing else. Example: ["Sports", "Entertainment"]"""
+2. Select 1 to 7 most relevant hashtags from OUR HASHTAG LIST above.
+3. Use EXACT names from the list (e.g. "Sports" not "Sport").
+4. Return ONLY a JSON array. Example: ["Sports", "Entertainment"]"""
 
                 response = model.generate_content(prompt)
                 if response and response.text:
