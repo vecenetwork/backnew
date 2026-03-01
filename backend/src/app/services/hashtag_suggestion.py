@@ -13,24 +13,48 @@ logger = logging.getLogger(__name__)
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-SYSTEM_INSTRUCTION = """You are a hashtag selector. Your ONLY task: choose 1 to 7 tag NUMBERS from the numbered list provided.
-Rules:
-- Return ONLY a JSON array of integers (the numbers, not names). Example: [1, 5, 12]
-- Never invent numbers. Use only numbers from the list.
-- Pick the most relevant tags for the question and answer options."""
+SYSTEM_INSTRUCTION = """You are a hashtag selector. Choose 1 to 7 tags from the list provided.
+Rules: Return ONLY a JSON array of tag names. Copy names EXACTLY as written in the list. Do not invent or modify names.
+Example: ["Sports", "Music"]"""
 
 
-def _parse_indices_from_response(text: str) -> list[int]:
-    """Extract list of indices from Gemini response. Expects JSON array of integers."""
+def _parse_names_from_response(text: str) -> list[str]:
+    """Extract tag names from Gemini response. Handles JSON array, comma-separated, or line-separated."""
     text = text.strip()
     try:
         json_match = re.search(r"\[[\s\S]*?\]", text)
         if json_match:
             arr = json.loads(json_match.group())
-            return [int(x) for x in arr if isinstance(x, (int, float)) and x == int(x)]
-    except (json.JSONDecodeError, ValueError, TypeError):
+            return [str(x).strip().strip('"') for x in arr if x]
+    except json.JSONDecodeError:
         pass
-    return []
+    parts = re.split(r"[,;\n]+", text)
+    return [p.strip().strip('"') for p in parts if p.strip()]
+
+
+def _validate_and_map_to_canonical(
+    suggested: list[str], name_to_canonical: dict[str, str], all_names: list[str]
+) -> list[str]:
+    """Map suggested names to canonical DB names. Exact match first, then fuzzy (Sport→Sports)."""
+    result: list[str] = []
+    seen: set[str] = set()
+    for s in suggested:
+        key = s.strip().lstrip("#").strip('"')
+        if not key:
+            continue
+        key_lower = key.lower()
+        canonical = name_to_canonical.get(key_lower)
+        if not canonical and len(key_lower) >= 3:
+            canonical = next(
+                (n for n in all_names if n.lower().startswith(key_lower) or key_lower.startswith(n.lower())),
+                None,
+            )
+        if canonical and canonical not in seen:
+            seen.add(canonical)
+            result.append(canonical)
+        if len(result) >= 7:
+            break
+    return result[:7]
 
 
 class HashtagSuggestionService:
@@ -105,41 +129,34 @@ class HashtagSuggestionService:
                 from google.genai import types
 
                 client = genai.Client(api_key=GOOGLE_API_KEY)
-                # Numbered list: model returns indices, we map to names (reliable)
-                tag_limit = min(800, len(all_names))  # Keep prompt manageable
-                numbered_list = "\n".join(f"{i}. {name}" for i, name in enumerate(all_names[:tag_limit], 1))
+                # Hybrid: keyword-matched tags first, then fill with rest (so relevant tags are in the list)
+                keyword_candidates = self._keyword_fallback(question_text, options or [], all_names, 50)
+                other_names = [n for n in all_names if n not in keyword_candidates]
+                # Send up to 400: keyword matches + others (ensures Sports, Music etc. are included when relevant)
+                candidate_set = list(dict.fromkeys(keyword_candidates + other_names))[:400]
+                tag_list = "\n".join(candidate_set) if candidate_set else "\n".join(all_names[:400])
 
                 options_str = "\n".join(f"- {o}" for o in (options or [])[:20]) if options else "(none)"
 
-                prompt = f"""TAGS (choose 1-7 by number):
-{numbered_list}
+                prompt = f"""TAGS (pick 1-7, copy names exactly):
+{tag_list}
 
-QUESTION:
-{question_text}
+QUESTION: {question_text}
+OPTIONS: {options_str}
 
-ANSWER OPTIONS:
-{options_str}
-
-Return JSON array of numbers. Example: [1, 5, 12]"""
+Return JSON array of tag names. Example: ["Sports", "Music"]"""
 
                 response = client.models.generate_content(
                     model="gemini-1.5-flash",
                     contents=prompt,
                     config=types.GenerateContentConfig(
                         system_instruction=SYSTEM_INSTRUCTION,
-                        temperature=0.2,
+                        temperature=0.3,
                     ),
                 )
                 if response and response.text:
-                    indices = _parse_indices_from_response(response.text)
-                    for idx in indices:
-                        if 1 <= idx <= len(all_names):
-                            name = all_names[idx - 1]
-                            if name not in result:
-                                result.append(name)
-                        if len(result) >= 7:
-                            break
-                    result = result[:7]
+                    suggested = _parse_names_from_response(response.text)
+                    result = _validate_and_map_to_canonical(suggested, name_to_canonical, all_names)
             except Exception as e:
                 logger.warning("Hashtag suggestion (Gemini) failed: %s", e)
 
