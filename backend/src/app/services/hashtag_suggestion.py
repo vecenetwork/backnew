@@ -179,14 +179,6 @@ Instructions:
                     ),
                 ]
             )
-                response_mime_type="application/json",
-                response_schema=types.Schema(
-                    type=types.Type.ARRAY,
-                    items=types.Schema(type=types.Type.STRING),
-                    min_items=0,
-                    max_items=7,
-                ),
-            )
 
             response = client.models.generate_content(
                 model=MODEL,
