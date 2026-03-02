@@ -110,14 +110,6 @@ class VerificationService:
         )
         await self.email_service.send_email(email, subject, body, is_html=True)
 
-    async def send_activation_email_with_link(self, email: str, verification_link: str):
-        """Sends activation email with a pre-built verification link (e.g. for pending registration)."""
-        subject = "Activate your VECE account"
-        body = VERIFY_EMAIL_TEMPLATE.format(
-            user_name="there", verification_link=verification_link
-        )
-        await self.email_service.send_email(email, subject, body, is_html=True)
-
     async def send_password_reset_email(self, user_email: str, user_name: str):
         """Sends a verification email to the user."""
         reset_token = self.generate_verification_token(user_email)

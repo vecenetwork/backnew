@@ -10,7 +10,6 @@
     <include file="./changelog_2025-08-20.xml" relativeToChangelogFile="true" />
     <include file="./changelog_2025-10-28.xml" relativeToChangelogFile="true" />
     <include file="./changelog_2026-03-02.xml" relativeToChangelogFile="true" />
-    <include file="sql/v/2025-02-25/08_pending_registration_credentials.sql" relativeToChangelogFile="true" />
 
 <!--    <include file="./insert_mock.xml" relativeToChangelogFile="true" />-->
 </databaseChangeLog>

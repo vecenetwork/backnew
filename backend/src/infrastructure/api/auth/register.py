@@ -40,10 +40,13 @@ async def request_registration_email(
             detail=f"Email service error: {e}",
         )
     except Exception as e:
-        logger.exception(e)
+        logger.exception("Failed to send activation email: %s", e, exc_info=True)
+        # Include error hint for debugging (e.g. missing table, Resend config)
+        err_msg = str(e) if e else "Unknown error"
+        detail = f"Failed to send activation email: {err_msg}"
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send activation email",
+            detail=detail,
         )
 
 
