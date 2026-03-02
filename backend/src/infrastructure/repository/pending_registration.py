@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 class PendingRegistration:
     id: int
     email: str
-    username: str
-    password_hash: str
+    username: str | None
+    password_hash: str | None
     token: str
     created_at: datetime
     expires_at: datetime
@@ -28,7 +28,12 @@ class PendingRegistrationRepository:
         self.db = db
 
     async def create(
-        self, email: str, username: str, password_hash: str, token: str, expires_at: datetime
+        self,
+        email: str,
+        token: str,
+        expires_at: datetime,
+        username: str | None = None,
+        password_hash: str | None = None,
     ) -> PendingRegistration:
         stmt = text("""
             INSERT INTO pending_registrations (email, username, password_hash, token, expires_at)

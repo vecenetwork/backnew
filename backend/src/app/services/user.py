@@ -113,48 +113,53 @@ class UserService:
         )
         await self.repo.create_user_simple(user_data, hashed_password, is_verified=True)
 
-    async def request_email_activation(self, email: str, username: str, password: str) -> None:
-        """Store registration in pending, send activation email. Email and username must be unique."""
+    async def request_email_activation(self, email: str) -> None:
+        """Store email in pending, send 6-digit activation code. Email must be unique."""
         if await self.email_registered(email):
             raise UserAlreadyExistsException(msg=f"Email {email} is already registered")
-        if await self.repo.user_exists_by_username_or_email(username, ""):
-            raise UserAlreadyExistsException(msg=f"Username {username} is already taken")
 
         code = f"{secrets.randbelow(10**6):06d}"
         expires_at = datetime.now() + timedelta(hours=24)
-        hashed_password = get_password_hash(password)
         await self.pending_repo.create(
             email=email,
-            username=username,
-            password_hash=hashed_password,
             token=code,
             expires_at=expires_at,
         )
         await self.verification.send_activation_email_with_code(email, code)
 
-    async def activate_from_pending(self, token: str) -> str:
-        """Create user from pending registration, return username. Raises InvalidToken if not found."""
-        pending = await self.pending_repo.get_by_token(token)
+    async def activate_from_pending(self, code: str, password: str) -> dict:
+        """Create verified user from pending (email-only signup). Returns access_token and username."""
+        pending = await self.pending_repo.get_by_token(code)
         if not pending:
             raise InvalidToken("Invalid or expired activation code")
 
-        if await self.repo.user_exists_by_username_or_email(pending.username, pending.email):
-            await self.pending_repo.delete_by_token(token)
-            raise UserAlreadyExistsException(msg="Email or username already registered")
+        if await self.repo.user_exists_by_username_or_email("", pending.email):
+            await self.pending_repo.delete_by_token(code)
+            raise UserAlreadyExistsException(msg="Email already registered")
 
+        username = self._generate_username(pending.email)
+        hashed_password = get_password_hash(password)
         user_data = UserCreate(
-            username=pending.username,
+            username=username,
             email=pending.email,
-            password="",  # Not used, we have hashed
+            password="",
             birthday=DEFAULT_BIRTHDAY,
             country_id=DEFAULT_COUNTRY_ID,
             gender=DEFAULT_GENDER,
         )
         new_user = await self.repo.create_user_simple(
-            user_data, pending.password_hash, is_verified=True
+            user_data, hashed_password, is_verified=True
         )
-        await self.pending_repo.delete_by_token(token)
-        return new_user.username
+        await self.pending_repo.delete_by_token(code)
+
+        from infrastructure.api.auth.jwt_utils import create_token
+        from settings.security import ACCESS_TOKEN_EXPIRE_MINUTES
+
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_token(
+            data={"sub": new_user.username}, expires_delta=access_token_expires
+        )
+        return {"access_token": access_token, "token_type": "bearer", "username": new_user.username}
 
     def _generate_username(self, email: str) -> str:
         """Generate unique username from email prefix + random suffix."""

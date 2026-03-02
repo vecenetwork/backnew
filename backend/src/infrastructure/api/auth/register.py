@@ -19,6 +19,10 @@ class RequestEmailBody(BaseModel):
     password: str
 
 
+class RequestEmailOnlyBody(BaseModel):
+    email: EmailStr
+
+
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register_user(
     body: RequestEmailBody,
@@ -40,13 +44,13 @@ async def register_user(
 
 @router.post("/register/request-email", status_code=status.HTTP_200_OK)
 async def request_registration_email(
-    body: RequestEmailBody,
+    body: RequestEmailOnlyBody,
     service: user_service_dep,
 ):
-    """Legacy: User enters email, username, password. Sends activation link."""
+    """User enters email. Sends 6-digit activation code."""
     try:
-        await service.request_email_activation(body.email, body.username, body.password)
-        return {"message": "Activation email sent. Check your inbox."}
+        await service.request_email_activation(body.email)
+        return {"message": "Activation code sent. Check your email."}
     except UserAlreadyExistsException as e:
         e.raise_http_exception()
     except EmailSendError as e:
@@ -68,6 +72,7 @@ async def request_registration_email(
 
 class ActivateCodeBody(BaseModel):
     code: str
+    password: str
 
 
 @router.post("/register/activate", status_code=status.HTTP_200_OK)
@@ -75,10 +80,10 @@ async def activate_email(
     body: ActivateCodeBody,
     service: user_service_dep,
 ):
-    """Activate from pending registration using 6-digit code from email. Returns username."""
+    """Activate from pending (email-only signup). Creates user, returns access_token."""
     try:
-        username = await service.activate_from_pending(body.code)
-        return {"username": username}
+        result = await service.activate_from_pending(body.code, body.password)
+        return result
     except UserAlreadyExistsException as e:
         e.raise_http_exception()
     except InvalidToken as e:
