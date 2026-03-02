@@ -3,6 +3,7 @@ import re
 import secrets
 from typing import TYPE_CHECKING, Optional
 from datetime import date, datetime, timedelta
+from urllib.parse import quote
 
 from app.core.permissions import UserPermissions, UserViewLevel
 from app.exceptions import WrongPassword, Unauthorized, Missing, ConfigurationError, PermissionDenied, Duplicate, InvalidToken
@@ -95,6 +96,24 @@ class UserService:
         except Missing:
             return False
 
+    async def register_user_direct(self, email: str, username: str, password: str) -> None:
+        """Create user immediately. No email activation."""
+        if await self.email_registered(email):
+            raise UserAlreadyExistsException(msg=f"Email {email} is already registered")
+        if await self.repo.user_exists_by_username_or_email(username, ""):
+            raise UserAlreadyExistsException(msg=f"Username {username} is already taken")
+
+        hashed_password = get_password_hash(password)
+        user_data = UserCreate(
+            username=username,
+            email=email,
+            password="",
+            birthday=DEFAULT_BIRTHDAY,
+            country_id=DEFAULT_COUNTRY_ID,
+            gender=DEFAULT_GENDER,
+        )
+        await self.repo.create_user_simple(user_data, hashed_password, is_verified=True)
+
     async def request_email_activation(self, email: str, username: str, password: str) -> None:
         """Store registration in pending, send activation email. Email and username must be unique."""
         if await self.email_registered(email):
@@ -113,8 +132,8 @@ class UserService:
             expires_at=expires_at,
         )
 
-        from settings.general import BASE_URL
-        verification_link = f"{BASE_URL}/verify-email?token={token}"
+        from settings.general import FRONTEND_URL
+        verification_link = f"{FRONTEND_URL}/sign-in?token={quote(token)}"
         await self.verification.send_activation_email_with_link(email, verification_link)
 
     async def activate_from_pending(self, token: str) -> str:
