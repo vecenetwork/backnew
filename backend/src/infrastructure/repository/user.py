@@ -153,31 +153,31 @@ class UserRepository:
         self, user_data: UserCreate, hashed_password: str, is_verified: bool = False
     ) -> User:
         """Creates user with simplified registration (email, username, password)."""
-        async with self.db.begin():
-            new_user = UserORM(
-                name=user_data.name or "",
-                surname=user_data.surname or "",
-                username=user_data.username,
-                email=user_data.email,
-                password_hash=hashed_password,
-                birthday=user_data.birthday,
-                country_id=user_data.country_id,
-                gender=user_data.gender.value,
-                is_verified=is_verified,
-                is_active=True,
-                created_at=datetime.now(),
-                updated_at=datetime.now(),
-            )
-            self.db.add(new_user)
-            await self.db.flush()
-            default_settings = UserSettingsORM(
-                user_id=new_user.id,
-                show_name_option="Name",
-                show_question_results="Nobody",
-                allow_results_in_digests=False,
-                receive_digests=False,
-            )
-            self.db.add(default_settings)
+        new_user = UserORM(
+            name=user_data.name or "",
+            surname=user_data.surname or "",
+            username=user_data.username,
+            email=user_data.email,
+            password_hash=hashed_password,
+            birthday=user_data.birthday,
+            country_id=user_data.country_id,
+            gender=user_data.gender.value,
+            is_verified=is_verified,
+            is_active=True,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        self.db.add(new_user)
+        await self.db.flush()
+        default_settings = UserSettingsORM(
+            user_id=new_user.id,
+            show_name_option="Name",
+            show_question_results="Nobody",
+            allow_results_in_digests=False,
+            receive_digests=False,
+        )
+        self.db.add(default_settings)
+        await self.db.commit()
         await self.db.refresh(new_user)
         return User.model_validate(new_user)
 
