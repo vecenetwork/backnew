@@ -86,8 +86,8 @@ class HashtagRepository:
                 result = await self.db.execute(stmt)
         return [row[0] for row in result.all()]
 
-    async def get_hashtags_from_demo_pool(self) -> list[Hashtag]:
-        """Hashtags that appear in questions by the demo author (vece). No auth required."""
+    async def get_hashtags_from_demo_pool(self, limit: int = 30) -> list[Hashtag]:
+        """Hashtags that appear in questions by the demo author (vece). Returns random sample. No auth required."""
         stmt = (
             select(HashtagORM)
             .join(QuestionHashtagLinkORM, HashtagORM.id == QuestionHashtagLinkORM.hashtag_id)
@@ -95,6 +95,8 @@ class HashtagRepository:
             .join(UserORM, QuestionORM.author_id == UserORM.id)
             .where(UserORM.username == DEMO_AUTHOR_USERNAME)
             .distinct()
+            .order_by(func.random())
+            .limit(limit)
         )
         if self.db.in_transaction():
             result = await self.db.execute(stmt)
@@ -102,7 +104,16 @@ class HashtagRepository:
             async with self.db.begin():
                 result = await self.db.execute(stmt)
         hashtags_orm = result.scalars().all()
-        return [Hashtag.model_validate(h) for h in hashtags_orm]
+        if hashtags_orm:
+            return [Hashtag.model_validate(h) for h in hashtags_orm]
+        # Fallback: if no demo links yet, return random hashtags so user sees something
+        fallback = select(HashtagORM).order_by(func.random()).limit(limit)
+        if self.db.in_transaction():
+            result = await self.db.execute(fallback)
+        else:
+            async with self.db.begin():
+                result = await self.db.execute(fallback)
+        return [Hashtag.model_validate(h) for h in result.scalars().all()]
 
     async def get_random_hashtags(self, limit: int, current_user: Optional[User] = None) -> list[Hashtag]:
         """Retrieve random hashtags with optional subscription status."""
