@@ -108,3 +108,12 @@ class UserSettingsORM(Base):
     receive_digests: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True,
     )
+    show_country: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True,
+    )
+    show_gender: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True,
+    )
+    show_age: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True,
+    )

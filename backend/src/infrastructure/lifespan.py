@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 # Миграции, которые нужно применить при старте (idempotent)
 _STARTUP_MIGRATIONS = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS social_link VARCHAR(255)",
+    "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS show_country BOOLEAN DEFAULT TRUE",
+    "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS show_gender BOOLEAN DEFAULT TRUE",
+    "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS show_age BOOLEAN DEFAULT TRUE",
 ]
 
 

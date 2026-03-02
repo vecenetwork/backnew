@@ -39,6 +39,9 @@ class UserSettings(BaseModel):
     show_question_results: ShowQuestionResultsEnum = ShowQuestionResultsEnum.all_connections
     allow_results_in_digests: bool = True
     receive_digests: bool = True
+    show_country: bool = True
+    show_gender: bool = True
+    show_age: bool = True
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -144,6 +147,9 @@ class UserSettingsUpdate(BaseModel):
     show_question_results: Optional[ShowQuestionResultsEnum] = None
     allow_results_in_digests: Optional[bool] = None
     receive_digests: Optional[bool] = None
+    show_country: Optional[bool] = None
+    show_gender: Optional[bool] = None
+    show_age: Optional[bool] = None
 
 
 class UserUpdateBase(BaseModel):

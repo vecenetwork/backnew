@@ -33,6 +33,8 @@ MIGRATION_FILES = [
     "liquibase/changelog/sql/v/2025-10-28/01_add_social_link_to_users.sql",
     "liquibase/changelog/sql/v/2026-03-02/01_pending_registrations.sql",
     "liquibase/changelog/sql/v/2026-03-02/02_pending_email_only.sql",
+    "liquibase/changelog/sql/v/2026-02-27/01_add_filter_visibility_to_user_settings.sql",
+    "liquibase/changelog/sql/v/2026-02-27/02_add_hashtags_for_demo_questions.sql",
 ]
 
 
