@@ -40,25 +40,23 @@ class UserRepository:
         return stmt.add_columns(exists_stmt.label("is_subscribed"))
 
     async def user_exists_by_username_or_email(self, username: str, email: str) -> bool:
-        async with self.db.begin():
-            stmt = select(UserORM).where(
-                (UserORM.username == username) | (UserORM.email == email)
-            )
-            result = await self.db.execute(stmt)
-            user = result.scalars().first()
+        stmt = select(UserORM).where(
+            (UserORM.username == username) | (UserORM.email == email)
+        )
+        result = await self.db.execute(stmt)
+        user = result.scalars().first()
         return user is not None
 
     async def get_by_username_or_email(self, username: str, email: str) -> User:
-        async with self.db.begin():
-            stmt = (
-                select(UserORM)
-                .where((UserORM.username == username) | (UserORM.email == email))
-                .options(
-                    selectinload(UserORM.settings),
-                    selectinload(UserORM.country))
-            )
-            result = await self.db.execute(stmt)
-            user = result.scalar_one_or_none()
+        stmt = (
+            select(UserORM)
+            .where((UserORM.username == username) | (UserORM.email == email))
+            .options(
+                selectinload(UserORM.settings),
+                selectinload(UserORM.country))
+        )
+        result = await self.db.execute(stmt)
+        user = result.scalar_one_or_none()
 
         if not user:
             raise Missing("User not found")
@@ -94,16 +92,15 @@ class UserRepository:
             return User.model_validate(user_orm)
 
     async def get_by_email(self, email: str) -> User:
-        async with self.db.begin():
-            stmt = (
-                select(UserORM)
-                .options(
-                    selectinload(UserORM.settings),
-                    selectinload(UserORM.country))
-                .where(UserORM.email == email)
-            )
-            result = await self.db.execute(stmt)
-            user = result.scalar_one_or_none()
+        stmt = (
+            select(UserORM)
+            .options(
+                selectinload(UserORM.settings),
+                selectinload(UserORM.country))
+            .where(UserORM.email == email)
+        )
+        result = await self.db.execute(stmt)
+        user = result.scalar_one_or_none()
 
         if not user:
             raise Missing(f"User with email {email} not found")
@@ -353,14 +350,13 @@ class UserRepository:
 
     async def delete_user(self, user_id: int) -> None:
         """Delete a user, raise exception if not found."""
-        async with self.db.begin():
-            stmt = select(UserORM).where(UserORM.id == user_id)
-            result = await self.db.execute(stmt)
-            user = result.scalars().first()
-            if not user:
-                raise Missing("User not found")
+        stmt = select(UserORM).where(UserORM.id == user_id)
+        result = await self.db.execute(stmt)
+        user = result.scalars().first()
+        if not user:
+            raise Missing("User not found")
 
-            await self.db.delete(user)
+        await self.db.delete(user)
         await self.db.commit()
 
     async def search(

@@ -1,8 +1,9 @@
 import logging
 import re
 import secrets
-from typing import TYPE_CHECKING, Optional
 from datetime import date, datetime, timedelta
+from typing import TYPE_CHECKING, Optional
+from uuid import uuid4
 
 from app.core.permissions import UserPermissions, UserViewLevel
 from app.exceptions import WrongPassword, Unauthorized, Missing, ConfigurationError, PermissionDenied, Duplicate, InvalidToken
