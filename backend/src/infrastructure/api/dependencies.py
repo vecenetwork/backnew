@@ -32,6 +32,7 @@ from infrastructure.repository.stats.repo import build_statistics_repository
 from infrastructure.repository.subscriptions import build_subscription_repository
 from infrastructure.repository.user import build_user_repository
 from infrastructure.repository.user_settings import build_user_settings_repository
+from infrastructure.repository.pending_registration import build_pending_registration_repository
 from infrastructure.repository.waitlist import build_waitlist_repository
 
 if TYPE_CHECKING:
@@ -63,14 +64,14 @@ app_dep = Annotated["FastAPI", Depends(get_app)]
 def get_user_service(db: db_dependency) -> "UserService":
     user_repo = build_user_repository(db)
     user_settings_repo = build_user_settings_repository(db)
+    pending_repo = build_pending_registration_repository(db)
     email_service = build_email_service()
     verification_service = build_verification_service(email_service)
     subscription_repo = build_subscription_repository(db)
     similarity_repo = build_similarity_repository(db, subscription_repo)
-    user_service = build_user_service(
-        user_repo, user_settings_repo, verification_service, similarity_repo, subscription_repo
+    return build_user_service(
+        user_repo, user_settings_repo, verification_service, similarity_repo, subscription_repo, pending_repo
     )
-    return user_service
 
 
 user_service_dep = Annotated["UserService", Depends(get_user_service)]

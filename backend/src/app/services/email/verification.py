@@ -102,10 +102,16 @@ class VerificationService:
 
         await self.email_service.send_email(user_email, subject, body, is_html=True)
 
-    async def send_activation_email(self, email: str):
-        """Sends activation email for registration (before user exists)."""
-        verification_token = self.generate_verification_token(email)
-        verification_link = f"{BASE_URL}/verify-email?token={verification_token}"
+    async def send_activation_email_with_link(self, email: str, verification_link: str):
+        """Sends activation email with a pre-built verification link (e.g. for pending registration)."""
+        subject = "Activate your VECE account"
+        body = VERIFY_EMAIL_TEMPLATE.format(
+            user_name="there", verification_link=verification_link
+        )
+        await self.email_service.send_email(email, subject, body, is_html=True)
+
+    async def send_activation_email_with_link(self, email: str, verification_link: str):
+        """Sends activation email with a pre-built verification link (e.g. for pending registration)."""
         subject = "Activate your VECE account"
         body = VERIFY_EMAIL_TEMPLATE.format(
             user_name="there", verification_link=verification_link

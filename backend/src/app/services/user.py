@@ -1,8 +1,8 @@
 import logging
 import re
+import secrets
 from typing import TYPE_CHECKING, Optional
 from datetime import date, datetime, timedelta
-from uuid import uuid4
 
 from app.core.permissions import UserPermissions, UserViewLevel
 from app.exceptions import WrongPassword, Unauthorized, Missing, ConfigurationError, PermissionDenied, Duplicate, InvalidToken
@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from app.schema.user import UserCreate, User
     from app.services.email.verification import VerificationService
     from infrastructure.repository.user import UserRepository
+    from infrastructure.repository.pending_registration import PendingRegistrationRepository
     from infrastructure.repository.similarity.repo import SimilarityRepository
     from infrastructure.repository.subscriptions import SubscriptionRepository
 
@@ -36,6 +37,12 @@ class UserAlreadyExistsException(Duplicate):
     pass
 
 
+# Default values for registration (user can update in profile)
+DEFAULT_BIRTHDAY = date(2000, 1, 1)
+DEFAULT_COUNTRY_ID = 1
+DEFAULT_GENDER = GenderEnum.other
+
+
 class UserService:
     def __init__(
         self,
@@ -44,12 +51,14 @@ class UserService:
         verification: "VerificationService",
         similarity_repo: "SimilarityRepository",
         subscription_repo: "SubscriptionRepository",
+        pending_repo: "PendingRegistrationRepository",
     ):
         self.repo = repo
         self.settings_repo = settings_repo
         self.verification = verification
         self.similarity_repo = similarity_repo
         self.subscription_repo = subscription_repo
+        self.pending_repo = pending_repo
         self.permissions = UserPermissions()
 
     async def register_user(self, user_data: "UserCreate") -> "UserResponse":
@@ -86,11 +95,51 @@ class UserService:
         except Missing:
             return False
 
-    async def request_email_activation(self, email: str) -> None:
-        """Send activation email for registration. Email must not be registered."""
+    async def request_email_activation(self, email: str, username: str, password: str) -> None:
+        """Store registration in pending, send activation email. Email and username must be unique."""
         if await self.email_registered(email):
             raise UserAlreadyExistsException(msg=f"Email {email} is already registered")
-        await self.verification.send_activation_email(email)
+        if await self.repo.user_exists_by_username_or_email(username, ""):
+            raise UserAlreadyExistsException(msg=f"Username {username} is already taken")
+
+        token = secrets.token_urlsafe(32)
+        expires_at = datetime.now() + timedelta(hours=24)
+        hashed_password = get_password_hash(password)
+        await self.pending_repo.create(
+            email=email,
+            username=username,
+            password_hash=hashed_password,
+            token=token,
+            expires_at=expires_at,
+        )
+
+        from settings.general import BASE_URL
+        verification_link = f"{BASE_URL}/verify-email?token={token}"
+        await self.verification.send_activation_email_with_link(email, verification_link)
+
+    async def activate_from_pending(self, token: str) -> str:
+        """Create user from pending registration, return username. Raises InvalidToken if not found."""
+        pending = await self.pending_repo.get_by_token(token)
+        if not pending:
+            raise InvalidToken("Invalid or expired activation link")
+
+        if await self.repo.user_exists_by_username_or_email(pending.username, pending.email):
+            await self.pending_repo.delete_by_token(token)
+            raise UserAlreadyExistsException(msg="Email or username already registered")
+
+        user_data = UserCreate(
+            username=pending.username,
+            email=pending.email,
+            password="",  # Not used, we have hashed
+            birthday=DEFAULT_BIRTHDAY,
+            country_id=DEFAULT_COUNTRY_ID,
+            gender=DEFAULT_GENDER,
+        )
+        new_user = await self.repo.create_user_simple(
+            user_data, pending.password_hash, is_verified=True
+        )
+        await self.pending_repo.delete_by_token(token)
+        return new_user.username
 
     def _generate_username(self, email: str) -> str:
         """Generate unique username from email prefix + random suffix."""
@@ -380,6 +429,8 @@ def build_user_service(
     verification_service: "VerificationService",
     similarity_repo: "SimilarityRepository",
     subscription_repo: "SubscriptionRepository",
+    pending_repo: "PendingRegistrationRepository",
 ) -> UserService:
-    user_service = UserService(repo, settings_repo, verification_service, similarity_repo, subscription_repo)
-    return user_service
+    return UserService(
+        repo, settings_repo, verification_service, similarity_repo, subscription_repo, pending_repo
+    )
