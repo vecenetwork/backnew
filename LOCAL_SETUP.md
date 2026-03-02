@@ -19,25 +19,23 @@
 
 ### Текущая конфигурация (`.env`)
 
-- `EMAIL_ADDRESS=info@vece.ai`
-- `EMAIL_PASSWORD=` — **пусто**
+- `EMAIL_ADDRESS=info@vece.ai` — адрес отправителя (должен быть верифицирован в Resend)
+- `RESEND_API_KEY=` — **пусто** для локальной разработки
 
 ### Поведение
 
-- **Если `EMAIL_PASSWORD` пустой:** ссылка активации выводится в консоль бэка (для локальной разработки).
-- **Если `EMAIL_PASSWORD` задан:** письма отправляются через SMTP (Gmail: `smtp.gmail.com:587`).
+- **Если `RESEND_API_KEY` пустой:** ссылка активации выводится в консоль бэка (для локальной разработки).
+- **Если `RESEND_API_KEY` задан:** письма отправляются через [Resend API](https://resend.com).
 
 ### Для реальной отправки писем
 
-1. **Gmail:** создать App Password и указать в `.env`:
+1. Зарегистрируйся на [Resend](https://resend.com).
+2. Добавь и верифицируй домен (например, vece.ai).
+3. Создай API ключ и укажи в `.env`:
    ```
-   EMAIL_ADDRESS=your@gmail.com
-   EMAIL_PASSWORD=xxxx xxxx xxxx xxxx
-   SMTP_HOST=smtp.gmail.com
-   SMTP_PORT=587
+   RESEND_API_KEY=re_xxxxxxxx
+   EMAIL_ADDRESS=info@vece.ai
    ```
-
-2. **Домен vece.ai:** настроить SMTP для `info@vece.ai` и указать хост/порт/пароль в `.env`.
 
 ## Шаблон письма
 
@@ -55,4 +53,4 @@ cd front\ copy
 npm run dev
 ```
 
-При пустом `EMAIL_PASSWORD` после ввода email смотри консоль бэка — там будет ссылка для активации.
+При пустом `RESEND_API_KEY` после ввода email смотри консоль бэка — там будет ссылка для активации.

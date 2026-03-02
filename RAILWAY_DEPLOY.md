@@ -39,8 +39,8 @@
 | `BASE_URL` | https://ТВОЙ-ДОМЕН.railway.app/api |
 | `FRONTEND_URL` | https://твой-фронт.vercel.app (или где хостится фронт) |
 | `GOOGLE_API_KEY` | Ключ из [Google AI Studio](https://aistudio.google.com/apikey) — для подсказки хештегов (1–7 из нашего списка) |
-| `EMAIL_ADDRESS` | info@vece.ai |
-| `EMAIL_PASSWORD` | (если есть — пароль для SMTP) |
+| `EMAIL_ADDRESS` | info@vece.ai (должен быть верифицирован в Resend) |
+| `RESEND_API_KEY` | Ключ из [Resend](https://resend.com) (re_xxx) — для отправки писем |
 
 **Важно:** `BASE_URL` и `FRONTEND_URL` задай **после** того, как Railway выдаст домен.
 

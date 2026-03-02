@@ -35,7 +35,7 @@ def root():
 @app.get("/api/health")
 def health():
     """Проверка: бэк запущен и доступен по /api."""
-    email_configured = bool(os.getenv("EMAIL_PASSWORD", "").strip())
+    email_configured = bool(os.getenv("RESEND_API_KEY", "").strip())
     base_url = os.getenv("BASE_URL", "http://localhost:8000/api")
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
     return {
