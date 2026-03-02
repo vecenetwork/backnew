@@ -10,10 +10,14 @@
 
 ## Sign Up (регистрация)
 
-1. **Шаг 1:** Пользователь вводит email → `POST /api/register/request-email`
-2. **Письмо:** Ссылка вида `http://localhost:8000/api/verify-email?token=xxx`
-3. **Клик по ссылке:** Бэк проверяет токен и редиректит на `http://localhost:3000/sign-up?email=xxx&token=xxx`
-4. **Шаг 2:** Пользователь вводит country, birthday, gender и password → `POST /api/register/complete` (username генерируется автоматически)
+**Текущий флоу (email → код → пароль):**
+
+1. **Шаг 1:** Пользователь вводит email → `POST /api/register/request-email` (body: `{ "email": "user@example.com" }`)
+2. **Письмо:** 6-значный код (например `341202`) — письмо отправляется через Resend
+3. **Шаг 2:** Пользователь вводит код и пароль (мин. 8 символов) → `POST /api/register/activate` (body: `{ "code": "341202", "password": "..." }`)
+4. **Ответ:** `{ "access_token": "...", "token_type": "bearer", "username": "user_abc123" }` — пользователь залогинен
+
+**Альтернатива (прямая регистрация без кода):** `POST /api/register` с `email`, `username`, `password` — создаёт аккаунт сразу, без активации.
 
 ## Email (отправка писем)
 

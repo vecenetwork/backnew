@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.exceptions import InvalidToken
 from app.services.email.email import EmailSendError
@@ -16,7 +16,7 @@ router = APIRouter(tags=["auth"])
 class RequestEmailBody(BaseModel):
     email: EmailStr
     username: str
-    password: str
+    password: str = Field(..., min_length=8, description="Password (min 8 characters)")
 
 
 class RequestEmailOnlyBody(BaseModel):
@@ -71,8 +71,18 @@ async def request_registration_email(
 
 
 class ActivateCodeBody(BaseModel):
-    code: str
-    password: str
+    code: str = Field(..., min_length=6, max_length=6, description="6-digit activation code from email")
+    password: str = Field(..., min_length=8, description="Password (min 8 characters)")
+
+    @field_validator("code", mode="before")
+    @classmethod
+    def normalize_code(cls, v):
+        """Preserve leading zeros: frontend may send code as number (34120 → 034120)."""
+        if isinstance(v, int):
+            return str(v).zfill(6)
+        if isinstance(v, str):
+            return v.strip()
+        return v
 
 
 @router.post("/register/activate", status_code=status.HTTP_200_OK)

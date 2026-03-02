@@ -8,6 +8,7 @@ from uuid import uuid4
 from app.core.permissions import UserPermissions, UserViewLevel
 from app.exceptions import WrongPassword, Unauthorized, Missing, ConfigurationError, PermissionDenied, Duplicate, InvalidToken
 from app.schema.user import (
+    UserCreate,
     UserResponse,
     UserUpdateInternal,
     UserUpdate,
@@ -24,7 +25,7 @@ from infrastructure.api.auth import jwt_utils
 from infrastructure.repository.user_settings import UserSettingsRepository
 
 if TYPE_CHECKING:
-    from app.schema.user import UserCreate, User
+    from app.schema.user import User
     from app.services.email.verification import VerificationService
     from infrastructure.repository.user import UserRepository
     from infrastructure.repository.pending_registration import PendingRegistrationRepository
