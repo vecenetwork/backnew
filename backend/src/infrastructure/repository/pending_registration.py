@@ -40,12 +40,13 @@ class PendingRegistrationRepository:
             VALUES (:email, :username, :password_hash, :token, :expires_at)
             RETURNING id, email, username, password_hash, token, created_at, expires_at
         """)
+        # Use empty string if None (works before migration makes columns nullable)
         result = await self.db.execute(
             stmt,
             {
                 "email": email,
-                "username": username,
-                "password_hash": password_hash,
+                "username": username if username is not None else "",
+                "password_hash": password_hash if password_hash is not None else "",
                 "token": token,
                 "expires_at": expires_at,
             },
