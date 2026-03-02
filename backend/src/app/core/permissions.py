@@ -1,11 +1,13 @@
 from enum import Enum
 
+from typing import Optional
+
 from app.exceptions import PermissionDenied
 from app.schema.user import Role, User
 
 
 class BasePolicy:
-    def __init__(self, current_user: User | None = None):
+    def __init__(self, current_user: Optional[User] = None):
         self.user = current_user
 
     def setup(self, current_user: User):

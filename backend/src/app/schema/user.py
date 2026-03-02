@@ -53,36 +53,36 @@ class User(BaseModel):
     birthday: date
     country: Country
     gender: GenderEnum
-    settings: UserSettings | None = None
-    description: str | None = None
-    profile_picture: str | None = None
-    social_link: str | None = None
+    settings: Optional[UserSettings] = None
+    description: Optional[str] = None
+    profile_picture: Optional[str] = None
+    social_link: Optional[str] = None
     is_verified: bool
     is_active: bool
     role: Role = Role.user
-    is_subscribed: bool | None = None
-    similarity: Similarity | None = None  # Optional similarity score with current user
-    mutuality: Mutuality | None = None  # Optional mutuality score with current user
+    is_subscribed: Optional[bool] = None
+    similarity: Optional[Similarity] = None  # Optional similarity score with current user
+    mutuality: Optional[Mutuality] = None  # Optional mutuality score with current user
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class UserResponse(BaseModel):
     id: int
-    name: str | None = None  # may be hidden from other users
-    surname: str | None = None  # may be hidden from other users
+    name: Optional[str] = None  # may be hidden from other users
+    surname: Optional[str] = None  # may be hidden from other users
     username: str
-    email: EmailStr | None = None
-    birthday: date | None = None  # may be hidden from other users
+    email: Optional[EmailStr] = None
+    birthday: Optional[date] = None  # may be hidden from other users
     country: Country
     gender: GenderEnum
-    profile_picture: str | None = None
-    settings: UserSettings | None = None
-    description: str | None = None
-    social_link: str | None = None
-    is_subscribed: bool | None = None
-    similarity: Similarity | None = None  # Optional similarity score with current user
-    mutuality: Mutuality | None = None  # Optional mutuality score with current user
+    profile_picture: Optional[str] = None
+    settings: Optional[UserSettings] = None
+    description: Optional[str] = None
+    social_link: Optional[str] = None
+    is_subscribed: Optional[bool] = None
+    similarity: Optional[Similarity] = None  # Optional similarity score with current user
+    mutuality: Optional[Mutuality] = None  # Optional mutuality score with current user
 
     model_config = ConfigDict(from_attributes=True)
 

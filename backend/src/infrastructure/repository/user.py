@@ -371,7 +371,8 @@ class UserRepository:
     ) -> list[User]:
         """Search users by username or name."""
         # Add wildcards for LIKE query and escape special characters
-        search_pattern = f"%{query.replace('%', '\\%').replace('_', '\\_')}%"
+        escaped_query = query.replace('%', '\\%').replace('_', '\\_')
+        search_pattern = f"%{escaped_query}%"
 
         stmt = (
             select(UserORM)
