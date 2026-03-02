@@ -88,5 +88,11 @@ async def activate_email(
         e.raise_http_exception()
     except InvalidToken as e:
         raise HTTPException(status_code=400, detail=e.detail)
+    except Exception as e:
+        logger.exception("Activation failed: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Activation failed. Please try again or contact support.",
+        )
 
 

@@ -15,16 +15,18 @@ def _get_cors_config() -> dict:
     frontend = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
     if frontend:
         origins.append(frontend)
+    # Add common local dev origins
+    for o in ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173"]:
+        if o not in origins:
+            origins.append(o)
     extra = os.getenv("CORS_ORIGINS", "")
     for o in extra.split(","):
         o = o.strip().rstrip("/")
         if o and o not in origins:
             origins.append(o)
-    if not origins:
-        return {"allow_origins": ["*"], "allow_credentials": False}
     return {
         "allow_origins": origins,
-        "allow_origin_regex": r"https://.*\.vercel\.app",  # Preview deployments
+        "allow_origin_regex": r"https://.*\.vercel\.app|http://(localhost|127\.0\.0\.1)(:\d+)?",
         "allow_credentials": True,
         "allow_methods": ["*"],
         "allow_headers": ["*"],
