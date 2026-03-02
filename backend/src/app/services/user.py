@@ -131,6 +131,11 @@ class UserService:
 
     async def activate_from_pending(self, code: str, password: str) -> dict:
         """Create verified user from pending (email-only signup). Returns access_token and username."""
+        result, _ = await self._activate_from_pending_internal(code, password)
+        return result
+
+    async def _activate_from_pending_internal(self, code: str, password: str) -> tuple[dict, "User"]:
+        """Create verified user from pending. Returns (token_dict, user) for demo migration."""
         pending = await self.pending_repo.get_by_token(code)
         if not pending:
             raise InvalidToken("Invalid or expired activation code")
@@ -161,7 +166,8 @@ class UserService:
         access_token = create_token(
             data={"sub": new_user.username}, expires_delta=access_token_expires
         )
-        return {"access_token": access_token, "token_type": "bearer", "username": new_user.username}
+        result = {"access_token": access_token, "token_type": "bearer", "username": new_user.username}
+        return result, new_user
 
     def _generate_username(self, email: str) -> str:
         """Generate unique username from email prefix + random suffix."""

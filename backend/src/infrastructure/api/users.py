@@ -92,6 +92,20 @@ async def get_user(
 #     return await user_service.create_user(user_data)
 
 
+@router.put("/me", response_model=UserResponse)
+async def update_me(
+    user_data: UserUpdate,
+    token: token_dependency,
+    user_service: user_service_dep,
+    current_user: current_user_dep,
+) -> UserResponse:
+    """Update current user's profile (alias for PUT /users/{id})."""
+    try:
+        return await user_service.update_user(current_user.id, user_data, current_user)
+    except ApiException as exc:
+        exc.raise_http_exception()
+
+
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
     user_id: int,
