@@ -42,7 +42,19 @@ def main():
     author_id = row[0]
 
     # Delete existing demo questions from vece (idempotent re-run)
-    cur.execute("DELETE FROM questions WHERE author_id = %s", (author_id,))
+    # Supabase has ~8s statement timeout; delete in batches to avoid timeout
+    deleted_total = 0
+    while True:
+        cur.execute(
+            "DELETE FROM questions WHERE id IN (SELECT id FROM questions WHERE author_id = %s LIMIT 50)",
+            (author_id,),
+        )
+        n = cur.rowcount
+        deleted_total += n
+        if n == 0:
+            break
+        conn.commit()
+    conn.commit()
 
     # Load all hashtags: name -> id
     cur.execute("SELECT id, name FROM hashtags")
