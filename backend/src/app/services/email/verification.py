@@ -10,6 +10,53 @@ from app.services.email.email import EmailService
 
 logger = logging.getLogger(__name__)
 
+ACTIVATION_CODE_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Activate Your Account</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.5; color: #333;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f7f7f7; padding: 20px 12px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 100%;">
+          <tr>
+            <td style="padding: 24px 20px 16px 20px; text-align: center;">
+              <img src="https://drive.google.com/uc?export=view&id=1AM84Ekjy5CuK3kafmL0uxgpBylc5njws" alt="Logo" style="height: 32px; margin-bottom: 16px;">
+              <div style="font-size: 20px; font-weight: 600; color: #1a1a1a;">Welcome!</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 0 20px 24px 20px;">
+              <p style="margin: 0 0 16px 0; font-size: 15px;">Hi there,</p>
+              <p style="margin: 0 0 16px 0; font-size: 15px;">Thanks for signing up! Here is your activation code:</p>
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;">
+                <tr>
+                  <td align="center">
+                    <div style="display: inline-block; padding: 16px 32px; background-color: #f0f0f0; border-radius: 8px; font-size: 28px; font-weight: 600; letter-spacing: 6px; font-family: monospace;">{activation_code}</div>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin: 20px 0 0 0; font-size: 15px;">Enter this code on the sign-in page to activate your account.</p>
+              <p style="margin: 12px 0 0 0; color: #666; font-size: 13px;">This code expires in 24 hours.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 16px 20px; background-color: #f9f9f9; border-top: 1px solid #e5e5e5;">
+              <p style="margin: 0; color: #666; font-size: 12px;">If you didn't create an account, you can safely ignore this email.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+
 VERIFY_EMAIL_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -108,6 +155,12 @@ class VerificationService:
         body = VERIFY_EMAIL_TEMPLATE.format(
             user_name="there", verification_link=verification_link
         )
+        await self.email_service.send_email(email, subject, body, is_html=True)
+
+    async def send_activation_email_with_code(self, email: str, activation_code: str):
+        """Sends activation email with a 6-digit code (for pending registration)."""
+        subject = "Activate your VECE account"
+        body = ACTIVATION_CODE_TEMPLATE.format(activation_code=activation_code)
         await self.email_service.send_email(email, subject, body, is_html=True)
 
     async def send_password_reset_email(self, user_email: str, user_name: str):

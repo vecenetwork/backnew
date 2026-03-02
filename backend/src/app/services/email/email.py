@@ -30,6 +30,7 @@ class EmailService:
         """Sends an email via Resend API. If RESEND_API_KEY is empty, prints link to console (local dev)."""
         if self._use_console:
             link_match = re.search(r'href="([^"]+)"', body)
+            code_match = re.search(r'\b(\d{6})\b', body)
             if link_match:
                 link = link_match.group(1)
                 logger.warning(
@@ -39,9 +40,18 @@ class EmailService:
                     f"  Link: {link}"
                 )
                 print(f"\n>>> [LOCAL DEV] Activation link for {to_email}: {link}\n")
+            elif code_match:
+                code = code_match.group(1)
+                logger.warning(
+                    "RESEND_API_KEY not set — printing activation code to console (no email sent):\n"
+                    f"  To: {to_email}\n"
+                    f"  Subject: {subject}\n"
+                    f"  Code: {code}"
+                )
+                print(f"\n>>> [LOCAL DEV] Activation code for {to_email}: {code}\n")
             else:
                 logger.warning(
-                    f"RESEND_API_KEY not set — no link found in body. To: {to_email}, Subject: {subject}"
+                    f"RESEND_API_KEY not set — no link/code found in body. To: {to_email}, Subject: {subject}"
                 )
             return
 

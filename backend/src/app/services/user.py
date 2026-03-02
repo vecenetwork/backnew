@@ -3,7 +3,6 @@ import re
 import secrets
 from typing import TYPE_CHECKING, Optional
 from datetime import date, datetime, timedelta
-from urllib.parse import quote
 
 from app.core.permissions import UserPermissions, UserViewLevel
 from app.exceptions import WrongPassword, Unauthorized, Missing, ConfigurationError, PermissionDenied, Duplicate, InvalidToken
@@ -121,26 +120,23 @@ class UserService:
         if await self.repo.user_exists_by_username_or_email(username, ""):
             raise UserAlreadyExistsException(msg=f"Username {username} is already taken")
 
-        token = secrets.token_urlsafe(32)
+        code = f"{secrets.randbelow(10**6):06d}"
         expires_at = datetime.now() + timedelta(hours=24)
         hashed_password = get_password_hash(password)
         await self.pending_repo.create(
             email=email,
             username=username,
             password_hash=hashed_password,
-            token=token,
+            token=code,
             expires_at=expires_at,
         )
-
-        from settings.general import FRONTEND_URL
-        verification_link = f"{FRONTEND_URL}/sign-in?token={quote(token)}"
-        await self.verification.send_activation_email_with_link(email, verification_link)
+        await self.verification.send_activation_email_with_code(email, code)
 
     async def activate_from_pending(self, token: str) -> str:
         """Create user from pending registration, return username. Raises InvalidToken if not found."""
         pending = await self.pending_repo.get_by_token(token)
         if not pending:
-            raise InvalidToken("Invalid or expired activation link")
+            raise InvalidToken("Invalid or expired activation code")
 
         if await self.repo.user_exists_by_username_or_email(pending.username, pending.email):
             await self.pending_repo.delete_by_token(token)

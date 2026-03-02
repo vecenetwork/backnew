@@ -66,18 +66,18 @@ async def request_registration_email(
         )
 
 
-class ActivateTokenBody(BaseModel):
-    token: str
+class ActivateCodeBody(BaseModel):
+    code: str
 
 
 @router.post("/register/activate", status_code=status.HTTP_200_OK)
 async def activate_email(
-    body: ActivateTokenBody,
+    body: ActivateCodeBody,
     service: user_service_dep,
 ):
-    """Activate from pending registration. Returns username. Called by frontend when user lands with ?token= in URL."""
+    """Activate from pending registration using 6-digit code from email. Returns username."""
     try:
-        username = await service.activate_from_pending(body.token)
+        username = await service.activate_from_pending(body.code)
         return {"username": username}
     except UserAlreadyExistsException as e:
         e.raise_http_exception()
