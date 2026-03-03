@@ -17,6 +17,14 @@ if TYPE_CHECKING:
 
 DEMO_AUTHOR_USERNAME = "vece"
 
+# Allowed hashtag IDs for demo (curated list). Hashtags and questions are restricted to these.
+DEMO_ALLOWED_HASHTAG_IDS = frozenset({
+    1, 6, 12, 16, 18, 29, 32, 38, 41, 57, 65, 77, 78, 94, 96, 104, 107, 113, 114, 124,
+    131, 140, 141, 142, 148, 154, 157, 159, 167, 169, 170, 176, 177, 185, 200, 205, 206,
+    211, 235, 242, 246, 251, 258, 262, 268, 273, 293, 314, 322, 344, 358, 413, 462, 515,
+    600, 688, 853, 928, 998, 1130,
+})
+
 
 class HashtagRepository:
     def __init__(self, db: "AsyncSession"):
@@ -87,31 +95,16 @@ class HashtagRepository:
         return [row[0] for row in result.all()]
 
     async def get_hashtags_from_demo_pool(self, limit: int = 30) -> list[Hashtag]:
-        """Hashtags that appear in questions by the demo author (vece). Returns random sample. No auth required."""
-        # PostgreSQL: ORDER BY random() with SELECT DISTINCT fails (expr must be in select list).
-        # Use subquery for distinct ids, then order by random in outer query.
-        inner = (
-            select(HashtagORM.id)
-            .join(QuestionHashtagLinkORM, HashtagORM.id == QuestionHashtagLinkORM.hashtag_id)
-            .join(QuestionORM, QuestionHashtagLinkORM.question_id == QuestionORM.id)
-            .join(UserORM, QuestionORM.author_id == UserORM.id)
-            .where(UserORM.username == DEMO_AUTHOR_USERNAME)
-            .distinct()
-        )
+        """Demo hashtags: only from DEMO_ALLOWED_HASHTAG_IDS, random order. No auth required."""
         stmt = (
             select(HashtagORM)
-            .where(HashtagORM.id.in_(inner))
+            .where(HashtagORM.id.in_(DEMO_ALLOWED_HASHTAG_IDS))
             .order_by(func.random())
             .limit(limit)
         )
         result = await self.db.execute(stmt)
         hashtags_orm = result.scalars().all()
-        if hashtags_orm:
-            return [Hashtag.model_validate(h) for h in hashtags_orm]
-        # Fallback: if no demo links yet, return random hashtags so user sees something
-        fallback = select(HashtagORM).order_by(func.random()).limit(limit)
-        result = await self.db.execute(fallback)
-        return [Hashtag.model_validate(h) for h in result.scalars().all()]
+        return [Hashtag.model_validate(h) for h in hashtags_orm]
 
     async def get_random_hashtags(self, limit: int, current_user: Optional[User] = None) -> list[Hashtag]:
         """Retrieve random hashtags with optional subscription status."""

@@ -11,6 +11,7 @@ from sqlalchemy.dialects.postgresql import Range
 from app.exceptions import Missing
 from app.orm.questions import QuestionORM, QuestionOptionORM, AnswerORM, QuestionHashtagLinkORM
 from app.orm.user import UserORM, UserSettingsORM
+from infrastructure.repository.hashtag import DEMO_ALLOWED_HASHTAG_IDS
 
 DEMO_AUTHOR_USERNAME = "vece"
 from app.orm.subscriptions import SubscriptionORM
@@ -596,17 +597,20 @@ class QuestionRepository:
         limit: int = 50,
         offset: int = 0,
     ) -> List[QuestionResponse]:
-        """Get questions from demo pool (vece user), optionally filtered by hashtags. No auth required."""
+        """Get questions from demo pool (vece user), restricted to DEMO_ALLOWED_HASHTAG_IDS. No auth required."""
         stmt = (
             select(QuestionORM)
             .join(UserORM, QuestionORM.author_id == UserORM.id)
             .where(UserORM.username == DEMO_AUTHOR_USERNAME)
         )
+        # Always restrict to allowed demo hashtags
+        effective_ids = list(DEMO_ALLOWED_HASHTAG_IDS)
         if hashtag_ids:
-            stmt = stmt.join(
-                QuestionHashtagLinkORM,
-                QuestionORM.id == QuestionHashtagLinkORM.question_id,
-            ).where(QuestionHashtagLinkORM.hashtag_id.in_(hashtag_ids))
+            effective_ids = [x for x in hashtag_ids if x in DEMO_ALLOWED_HASHTAG_IDS]
+        stmt = stmt.join(
+            QuestionHashtagLinkORM,
+            QuestionORM.id == QuestionHashtagLinkORM.question_id,
+        ).where(QuestionHashtagLinkORM.hashtag_id.in_(effective_ids))
         stmt = stmt.order_by(QuestionORM.created_at.desc()).limit(limit).offset(offset).distinct()
         stmt = self._add_base_joins(stmt)
 
