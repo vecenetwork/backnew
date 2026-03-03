@@ -88,13 +88,19 @@ class HashtagRepository:
 
     async def get_hashtags_from_demo_pool(self, limit: int = 30) -> list[Hashtag]:
         """Hashtags that appear in questions by the demo author (vece). Returns random sample. No auth required."""
-        stmt = (
-            select(HashtagORM)
+        # PostgreSQL: ORDER BY random() with SELECT DISTINCT fails (expr must be in select list).
+        # Use subquery for distinct ids, then order by random in outer query.
+        inner = (
+            select(HashtagORM.id)
             .join(QuestionHashtagLinkORM, HashtagORM.id == QuestionHashtagLinkORM.hashtag_id)
             .join(QuestionORM, QuestionHashtagLinkORM.question_id == QuestionORM.id)
             .join(UserORM, QuestionORM.author_id == UserORM.id)
             .where(UserORM.username == DEMO_AUTHOR_USERNAME)
             .distinct()
+        )
+        stmt = (
+            select(HashtagORM)
+            .where(HashtagORM.id.in_(inner))
             .order_by(func.random())
             .limit(limit)
         )
