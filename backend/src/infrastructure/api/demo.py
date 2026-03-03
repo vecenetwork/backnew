@@ -2,7 +2,7 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, HTTPException
 
 from infrastructure.api.dependencies import db_dependency
 from infrastructure.repository.hashtag import build_hashtag_repository
@@ -18,8 +18,12 @@ router = APIRouter(prefix="/demo", tags=["demo"])
 @router.get("/hashtags", response_model=list[Hashtag])
 async def get_demo_hashtags(db: db_dependency):
     """Hashtags that appear in the demo question pool (vece's questions). No auth required."""
-    hashtag_repo = build_hashtag_repository(db)
-    return await hashtag_repo.get_hashtags_from_demo_pool()
+    try:
+        hashtag_repo = build_hashtag_repository(db)
+        return await hashtag_repo.get_hashtags_from_demo_pool()
+    except Exception as e:
+        logger.exception("Failed to load demo hashtags: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to load topics") from e
 
 
 @router.get("/questions", response_model=list[QuestionResponse])

@@ -98,21 +98,13 @@ class HashtagRepository:
             .order_by(func.random())
             .limit(limit)
         )
-        if self.db.in_transaction():
-            result = await self.db.execute(stmt)
-        else:
-            async with self.db.begin():
-                result = await self.db.execute(stmt)
+        result = await self.db.execute(stmt)
         hashtags_orm = result.scalars().all()
         if hashtags_orm:
             return [Hashtag.model_validate(h) for h in hashtags_orm]
         # Fallback: if no demo links yet, return random hashtags so user sees something
         fallback = select(HashtagORM).order_by(func.random()).limit(limit)
-        if self.db.in_transaction():
-            result = await self.db.execute(fallback)
-        else:
-            async with self.db.begin():
-                result = await self.db.execute(fallback)
+        result = await self.db.execute(fallback)
         return [Hashtag.model_validate(h) for h in result.scalars().all()]
 
     async def get_random_hashtags(self, limit: int, current_user: Optional[User] = None) -> list[Hashtag]:
