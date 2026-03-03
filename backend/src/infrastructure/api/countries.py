@@ -11,7 +11,7 @@ router = APIRouter(prefix="/countries", tags=["countries"])
 
 @router.get("/", response_model=list[Country])
 async def get_countries(db: db_dependency) -> list[Country]:
-    stmt = select(CountryORM)
+    stmt = select(CountryORM).order_by(CountryORM.display_order, CountryORM.name)
     result = await db.execute(stmt)
     countries = result.scalars().all()
     return [Country.model_validate(country) for country in countries]
