@@ -17,6 +17,12 @@ _STARTUP_MIGRATIONS = [
     "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS show_country BOOLEAN DEFAULT TRUE",
     "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS show_gender BOOLEAN DEFAULT TRUE",
     "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS show_age BOOLEAN DEFAULT TRUE",
+    """CREATE TABLE IF NOT EXISTS account_deletion_export_requests (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""",
 ]
 
 

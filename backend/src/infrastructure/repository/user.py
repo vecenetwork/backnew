@@ -2,13 +2,14 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import select, update, and_, exists
+from sqlalchemy import select, update, delete, and_, exists, text
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import Select
 
 from app.exceptions import Missing
 from app.orm.user import UserORM, UserSettingsORM
 from app.orm.subscriptions import SubscriptionORM
+from app.orm.questions import QuestionOptionORM
 
 from app.schema.user import User, UserCreate, UserUpdateInternal
 
@@ -46,6 +47,15 @@ class UserRepository:
         result = await self.db.execute(stmt)
         user = result.scalars().first()
         return user is not None
+
+    async def username_taken_by_other(self, username: str, exclude_user_id: int) -> bool:
+        """Check if username is used by another user (excluding exclude_user_id)."""
+        stmt = select(UserORM).where(
+            UserORM.username == username,
+            UserORM.id != exclude_user_id,
+        )
+        result = await self.db.execute(stmt)
+        return result.scalars().first() is not None
 
     async def get_by_username_or_email(self, username: str, email: str) -> User:
         stmt = (
@@ -348,14 +358,37 @@ class UserRepository:
             user_orms = result.scalars().all()
             return [User.model_validate(user_orm) for user_orm in user_orms]
 
+    async def create_deletion_export_request(self, user_id: int, email: str) -> None:
+        """Store request for activity export before account deletion. Caller must commit."""
+        await self.db.execute(
+            text(
+                "INSERT INTO account_deletion_export_requests (user_id, email) VALUES (:user_id, :email)"
+            ),
+            {"user_id": user_id, "email": email},
+        )
+
     async def delete_user(self, user_id: int) -> None:
-        """Delete a user, raise exception if not found."""
+        """Delete a user and related data. Raise exception if not found."""
         stmt = select(UserORM).where(UserORM.id == user_id)
         result = await self.db.execute(stmt)
         user = result.scalars().first()
         if not user:
             raise Missing("User not found")
 
+        # 1. Delete subscriptions where others subscribed TO this user (no FK CASCADE)
+        await self.db.execute(
+            delete(SubscriptionORM).where(
+                SubscriptionORM.subscribed_to_type == "user",
+                SubscriptionORM.subscribed_to_id == user_id,
+            )
+        )
+
+        # 2. Null out question_options.author_id (FK has no ON DELETE)
+        await self.db.execute(
+            update(QuestionOptionORM).where(QuestionOptionORM.author_id == user_id).values(author_id=None)
+        )
+
+        # 3. Delete user (CASCADE: user_settings, questions, answers, subscriptions as subscriber)
         await self.db.delete(user)
         await self.db.commit()
 

@@ -127,9 +127,10 @@ async def delete_user(
     token: token_dependency,
     user_service: user_service_dep,
     current_user: current_user_dep,
+    export_activity: bool = Query(False, description="Request activity export by email before deletion"),
 ):
     try:
-        await user_service.delete_user(user_id, current_user)
+        await user_service.delete_user(user_id, current_user, export_activity=export_activity)
     except ApiException as exc:
         exc.raise_http_exception()
 

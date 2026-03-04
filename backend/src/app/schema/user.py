@@ -70,6 +70,13 @@ class User(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ProfileVisibility(BaseModel):
+    """Which profile fields the user allows others to see. Returned when viewing another user."""
+    show_country: bool = True
+    show_gender: bool = True
+    show_age: bool = True
+
+
 class UserResponse(BaseModel):
     id: int
     name: Optional[str] = None  # may be hidden from other users
@@ -77,8 +84,9 @@ class UserResponse(BaseModel):
     username: str
     email: Optional[EmailStr] = None
     birthday: Optional[date] = None  # may be hidden from other users
-    country: Country
-    gender: GenderEnum
+    country: Optional[Country] = None  # hidden when show_country=False
+    gender: Optional[GenderEnum] = None  # hidden when show_gender=False
+    profile_visibility: Optional[ProfileVisibility] = None  # only for other users, tells what to show
     profile_picture: Optional[str] = None
     settings: Optional[UserSettings] = None
     description: Optional[str] = None
@@ -91,7 +99,14 @@ class UserResponse(BaseModel):
 
     @classmethod
     def from_user(cls, user: User):
-        # Create a UserResponse from a User instance
+        # Create a UserResponse from a User instance (viewing own profile)
+        pv = None
+        if user.settings:
+            pv = ProfileVisibility(
+                show_country=user.settings.show_country,
+                show_gender=user.settings.show_gender,
+                show_age=user.settings.show_age,
+            )
         return cls(
             id=user.id,
             name=user.name,
@@ -102,6 +117,7 @@ class UserResponse(BaseModel):
             country=user.country,
             gender=user.gender,
             settings=user.settings,
+            profile_visibility=pv,
             description=user.description,
             profile_picture=user.profile_picture,
             social_link=user.social_link,
@@ -112,7 +128,8 @@ class UserResponse(BaseModel):
         # Create a UserResponse from a User instance when requested by other user
         if not user.settings:
             raise RuntimeError('User does not have settings')
-        if user.settings.show_name_option == ShowNameOptionEnum.name:
+        s = user.settings
+        if s.show_name_option == ShowNameOptionEnum.name:
             name_data = {
                 "name": user.name,
                 "surname": user.surname,
@@ -123,13 +140,23 @@ class UserResponse(BaseModel):
                 "username": user.username,
             }
 
+        # Apply privacy: only include country/gender/birthday if user allows
+        country = user.country if s.show_country else None
+        gender = user.gender if s.show_gender else None
+        birthday = user.birthday if s.show_age else None
+
         return cls(
             id=user.id,
             email=user.email,
-            birthday=None,
-            country=user.country,
-            gender=user.gender,
+            birthday=birthday,
+            country=country,
+            gender=gender,
             settings=None,
+            profile_visibility=ProfileVisibility(
+                show_country=s.show_country,
+                show_gender=s.show_gender,
+                show_age=s.show_age,
+            ),
             description=user.description,
             social_link=user.social_link,
             is_subscribed=user.is_subscribed,
@@ -153,6 +180,7 @@ class UserSettingsUpdate(BaseModel):
 
 
 class UserUpdateBase(BaseModel):
+    username: Optional[str] = None
     name: Optional[str] = None
     surname: Optional[str] = None
     birthday: Optional[date] = None

@@ -318,6 +318,11 @@ class UserService:
         if not self.permissions.can_edit_user(user_id):
             raise PermissionDenied("You are not allowed to update this user.")
 
+        # Check username uniqueness if changing
+        if user_data.username is not None and user_data.username != current_user.username:
+            if await self.repo.username_taken_by_other(user_data.username, user_id):
+                raise UserAlreadyExistsException(msg="Username is already taken")
+
         new_password_hash = None
         if user_data.old_password:
             if not verify_password(user_data.old_password, current_user.password_hash):
@@ -328,6 +333,7 @@ class UserService:
             new_password_hash = get_password_hash(user_data.new_password)
 
         internal_update = UserUpdateInternal(
+            username=user_data.username,
             name=user_data.name,
             surname=user_data.surname,
             birthday=user_data.birthday,
@@ -335,6 +341,7 @@ class UserService:
             gender=user_data.gender,
             description=user_data.description,
             profile_picture=user_data.profile_picture,
+            social_link=user_data.social_link,
             settings=user_data.settings,
             password_hash=new_password_hash,
         )
@@ -342,10 +349,14 @@ class UserService:
         updated_user = await self.repo.update_user(user_id, internal_update)
         return UserResponse.from_user(updated_user)
 
-    async def delete_user(self, user_id: int, current_user: "User") -> None:
+    async def delete_user(
+        self, user_id: int, current_user: "User", export_activity: bool = False
+    ) -> None:
         self.permissions.setup(current_user)
         if not self.permissions.can_edit_user(user_id):
             raise Unauthorized("You are not allowed to delete this user.")
+        if export_activity and current_user.email:
+            await self.repo.create_deletion_export_request(user_id, current_user.email)
         await self.repo.delete_user(user_id)
 
     async def get_settings(self, user_id: int, current_user: "User") -> UserSettings:
