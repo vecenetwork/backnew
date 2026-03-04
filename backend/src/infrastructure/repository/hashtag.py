@@ -17,13 +17,14 @@ if TYPE_CHECKING:
 
 DEMO_AUTHOR_USERNAME = "vece"
 
-# Allowed hashtag IDs for demo (curated list). Hashtags and questions are restricted to these.
-DEMO_ALLOWED_HASHTAG_IDS = frozenset({
-    1, 6, 12, 16, 18, 29, 32, 38, 41, 57, 65, 77, 78, 94, 96, 104, 107, 113, 114, 124,
-    131, 140, 141, 142, 148, 154, 157, 159, 167, 169, 170, 176, 177, 185, 200, 205, 206,
-    211, 235, 242, 246, 251, 258, 262, 268, 273, 293, 314, 322, 344, 358, 413, 462, 515,
-    600, 688, 853, 928, 998, 1130,
-})
+# Hashtag names that always appear in Demo topic selection (order preserved).
+DEMO_ALLOWED_HASHTAG_NAMES = (
+    "Psychology", "Identity", "Ethics", "Ambition", "Happiness", "MentalHealth", "Health",
+    "GymLife", "Dating", "Romance", "FamilyDynamics", "Parenting", "Friendship", "Finance",
+    "StockMarket", "Capitalism", "Career", "RemoteWork", "WorkLifeBalance", "Fashion", "Travel",
+    "Gastronomy", "Movies", "Music", "Gaming", "ArtificialIntelligence", "Future", "ClimateChange",
+    "Politics", "Education",
+)
 
 
 class HashtagRepository:
@@ -95,16 +96,17 @@ class HashtagRepository:
         return [row[0] for row in result.all()]
 
     async def get_hashtags_from_demo_pool(self, limit: int = 30) -> list[Hashtag]:
-        """Demo hashtags: only from DEMO_ALLOWED_HASHTAG_IDS, random order. No auth required."""
-        stmt = (
-            select(HashtagORM)
-            .where(HashtagORM.id.in_(DEMO_ALLOWED_HASHTAG_IDS))
-            .order_by(func.random())
-            .limit(limit)
-        )
+        """Demo hashtags: only from DEMO_ALLOWED_HASHTAG_NAMES, in fixed order. No auth required."""
+        stmt = select(HashtagORM).where(HashtagORM.name.in_(DEMO_ALLOWED_HASHTAG_NAMES))
         result = await self.db.execute(stmt)
         hashtags_orm = result.scalars().all()
-        return [Hashtag.model_validate(h) for h in hashtags_orm]
+        # Preserve order from DEMO_ALLOWED_HASHTAG_NAMES
+        order_map = {name: i for i, name in enumerate(DEMO_ALLOWED_HASHTAG_NAMES)}
+        sorted_hashtags = sorted(
+            hashtags_orm,
+            key=lambda h: order_map.get(h.name, 999),
+        )
+        return [Hashtag.model_validate(h) for h in sorted_hashtags[:limit]]
 
     async def get_random_hashtags(self, limit: int, current_user: Optional[User] = None) -> list[Hashtag]:
         """Retrieve random hashtags with optional subscription status."""
