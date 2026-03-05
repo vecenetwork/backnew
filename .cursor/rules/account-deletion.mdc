@@ -1,0 +1,35 @@
+---
+description: Account deletion flow - frontend, backend, API contract
+globs: ["**/SettingsPage.tsx", "**/api.ts", "**/users.py", "**/user.py", "**/user.py"]
+alwaysApply: false
+---
+
+# Account Deletion Flow
+
+## API Contract
+
+- **Endpoint**: `DELETE /api/users/{user_id}?export_activity=true|false`
+- **Auth**: Bearer token required (Authorization header)
+- **Response**: 204 No Content on success
+- **Errors**: 401 Unauthorized, 403 Forbidden, 404 Not Found
+
+## Frontend Rules
+
+1. **API call**: Use `fetch` directly (not shared `request()`) — 204 has no body
+2. **Headers**: Always send `Authorization: Bearer ${token}` and optionally `x-access-token`
+3. **Timeout**: Use AbortController with 15s timeout to avoid hanging
+4. **Post-success**: logout → open goodbye URL in new tab → redirect current tab
+5. **Error handling**: Show toast with server message; keep dialog open on error
+
+## Backend Rules
+
+1. **Permission**: User can only delete own account (`can_edit_user` = is_self or admin)
+2. **Export**: If `export_activity=true` and user has email → insert into `account_deletion_export_requests` before delete
+3. **Transaction**: Export insert + user delete in same transaction; commit at end
+4. **Order**: Delete subscriptions → null question_options.author_id → delete user → commit
+
+## Common Failures
+
+- **CORS**: Backend must allow frontend origin (FRONTEND_URL, CORS_ORIGINS, or vercel.app regex)
+- **Auth**: Token in Authorization header; OAuth2PasswordBearer extracts it
+- **API URL**: VITE_API_BASE_URL must point to backend (e.g. Railway URL + /api)
