@@ -15,6 +15,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/demo", tags=["demo"])
 
 
+@router.get("/questions/{question_id}", response_model=QuestionResponse)
+async def get_shared_question(
+    db: db_dependency,
+    question_id: int,
+):
+    """Get a single question by ID for shared links. No auth. Only active questions."""
+    question_repo = build_question_repository(db)
+    question = await question_repo.get_question_public(question_id)
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found or expired")
+    return question
+
+
 @router.get("/hashtags", response_model=list[Hashtag])
 async def get_demo_hashtags(db: db_dependency):
     """Hashtags that appear in the demo question pool (vece's questions). No auth required."""

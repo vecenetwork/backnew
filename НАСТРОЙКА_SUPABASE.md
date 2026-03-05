@@ -106,9 +106,16 @@ uv run --project backend uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 Аватары отдаются через подписанные URL (временные ссылки), которые генерирует бэкенд.
 
-**Переменные для Railway:**
-- `SUPABASE_URL` — в Supabase: **Settings** → **API** → **Project URL** (https://xxx.supabase.co)
-- `SUPABASE_SERVICE_ROLE_KEY` — в Supabase: **Settings** → **API** → **service_role** (секретный ключ)
+**Переменные окружения (один из вариантов):**
+
+Вариант 1 — Supabase API:
+- `SUPABASE_URL` — **Settings** → **API** → **Project URL** (https://xxx.supabase.co)
+- `SUPABASE_SERVICE_ROLE_KEY` — **Settings** → **API** → **service_role**
+
+Вариант 2 — S3-совместимый API (если есть access key):
+- `SUPABASE_URL` — Project URL
+- `SUPABASE_S3_ACCESS_KEY_ID` — **Storage** → **S3 Configuration** → Access Key ID
+- `SUPABASE_S3_SECRET_ACCESS_KEY` — Secret Access Key
 
 ---
 

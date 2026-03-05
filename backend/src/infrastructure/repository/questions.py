@@ -592,6 +592,21 @@ class QuestionRepository:
 
         return questions
 
+    async def get_question_public(self, question_id: int) -> Optional[QuestionResponse]:
+        """Get a single question by ID for shared links. No auth. Only active questions."""
+        from datetime import datetime
+        stmt = (
+            select(QuestionORM)
+            .where(QuestionORM.id == question_id)
+            .where(QuestionORM.active_till > datetime.utcnow())
+        )
+        stmt = self._add_base_joins(stmt)
+        result = await self.db.execute(stmt)
+        q = result.scalars().first()
+        if not q:
+            return None
+        return self._orm_to_question_response(q)
+
     async def get_demo_questions(
         self,
         hashtag_ids: Optional[List[int]] = None,
