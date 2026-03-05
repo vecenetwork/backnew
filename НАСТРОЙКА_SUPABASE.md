@@ -95,6 +95,23 @@ uv run --project backend uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 ---
 
+## 8. Storage для аватаров
+
+**Что нужно:** Создать приватный бакет в Supabase Storage (безопаснее, чем публичный).
+
+1. В Supabase Dashboard → **Storage** → **New bucket**
+2. Имя: `profile-pictures`
+3. **НЕ** включай Public bucket — оставь приватным
+4. Создай бакет
+
+Аватары отдаются через подписанные URL (временные ссылки), которые генерирует бэкенд.
+
+**Переменные для Railway:**
+- `SUPABASE_URL` — в Supabase: **Settings** → **API** → **Project URL** (https://xxx.supabase.co)
+- `SUPABASE_SERVICE_ROLE_KEY` — в Supabase: **Settings** → **API** → **service_role** (секретный ключ)
+
+---
+
 ## Важно
 
 - `.env` содержит пароль — не публикуйте его в репозитории (он уже в `.gitignore`).

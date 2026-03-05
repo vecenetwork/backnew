@@ -1,9 +1,20 @@
+import os
 from datetime import date
 from enum import Enum
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, EmailStr
 
 from app.schema.countries import Country
+
+
+def _avatar_url(user: "User") -> Optional[str]:
+    """Return avatar URL: our endpoint for paths (private bucket), or original URL for legacy."""
+    if not user.profile_picture:
+        return None
+    if user.profile_picture.startswith("http"):
+        return user.profile_picture
+    base = os.getenv("BASE_URL", "http://localhost:8000/api").rstrip("/")
+    return f"{base}/users/{user.id}/avatar"
 from app.schema.similarity import Similarity, Mutuality
 
 
@@ -119,7 +130,7 @@ class UserResponse(BaseModel):
             settings=user.settings,
             profile_visibility=pv,
             description=user.description,
-            profile_picture=user.profile_picture,
+            profile_picture=_avatar_url(user),
             social_link=user.social_link,
         )
 
@@ -162,7 +173,7 @@ class UserResponse(BaseModel):
             is_subscribed=user.is_subscribed,
             mutuality=user.mutuality,
             similarity=user.similarity,
-            profile_picture=user.profile_picture,
+            profile_picture=_avatar_url(user),
             **name_data,
         )
 

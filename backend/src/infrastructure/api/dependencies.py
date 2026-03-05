@@ -37,6 +37,7 @@ from infrastructure.repository.waitlist import build_waitlist_repository
 
 if TYPE_CHECKING:
     from app.schema.user import User
+    from infrastructure.repository.user import UserRepository
     from app.services.answers import AnswerService
     from app.services.questions import QuestionService
     from app.services.user import UserService
@@ -94,6 +95,13 @@ def get_user_service(db: db_dependency) -> "UserService":
 
 
 user_service_dep = Annotated["UserService", Depends(get_user_service)]
+
+
+def get_user_repository(db: db_dependency):
+    return build_user_repository(db)
+
+
+user_repo_dep = Annotated["UserRepository", Depends(get_user_repository)]
 
 
 async def current_user(

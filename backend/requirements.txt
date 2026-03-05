@@ -16,8 +16,8 @@ pyjwt>=2.10.1
 # Email (Resend HTTP API)
 httpx>=0.27.0
 
-# Storage
-boto3>=1.37.1
+# Storage (Supabase Storage for avatars)
+supabase>=2.0.0
 pillow>=11.1.0
 pillow-heif>=0.20.0
 

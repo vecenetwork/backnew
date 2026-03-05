@@ -41,8 +41,10 @@
 | `GOOGLE_API_KEY` | Ключ из [Google AI Studio](https://aistudio.google.com/apikey) — для подсказки хештегов (1–7 из нашего списка) |
 | `EMAIL_ADDRESS` | info@vece.ai (должен быть верифицирован в Resend) |
 | `RESEND_API_KEY` | Ключ из [Resend](https://resend.com) (re_xxx) — для отправки писем |
+| `SUPABASE_URL` | URL проекта Supabase (https://xxx.supabase.co) — для аватаров |
+| `SUPABASE_SERVICE_ROLE_KEY` | service_role ключ из Supabase (Settings → API) — для аватаров |
 
-**Важно:** `BASE_URL` и `FRONTEND_URL` задай **после** того, как Railway выдаст домен.
+**Важно:** `BASE_URL` и `FRONTEND_URL` задай **после** того, как Railway выдаст домен. Без SUPABASE_URL и SUPABASE_SERVICE_ROLE_KEY загрузка аватаров вернёт 500.
 
 ## Шаг 5: Публичный URL
 
