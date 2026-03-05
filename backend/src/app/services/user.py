@@ -349,14 +349,11 @@ class UserService:
         updated_user = await self.repo.update_user(user_id, internal_update)
         return UserResponse.from_user(updated_user)
 
-    async def delete_user(
-        self, user_id: int, current_user: "User", export_activity: bool = False
-    ) -> None:
+    async def delete_user(self, user_id: int, current_user: "User") -> None:
+        """Delete user and all related data from DB. User can only delete own account."""
         self.permissions.setup(current_user)
         if not self.permissions.can_edit_user(user_id):
             raise Unauthorized("You are not allowed to delete this user.")
-        if export_activity and current_user.email:
-            await self.repo.create_deletion_export_request(user_id, current_user.email)
         await self.repo.delete_user(user_id)
 
     async def get_settings(self, user_id: int, current_user: "User") -> UserSettings:
