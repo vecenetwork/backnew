@@ -2,7 +2,7 @@ import logging
 from typing import TYPE_CHECKING, Annotated
 
 from fastapi import FastAPI, Depends, HTTPException, Request, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer, APIKeyHeader
 
 from app.exceptions import Missing, InvalidToken
 from app.services.answers import build_answer_service
@@ -50,8 +50,27 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-token_dependency = Annotated[str, Depends(oauth2_scheme)]
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
+api_key_header = APIKeyHeader(name="x-access-token", auto_error=False)
+
+
+async def get_token(
+    bearer: str | None = Depends(oauth2_scheme),
+    x_token: str | None = Depends(api_key_header),
+) -> str:
+    """Accept token from Authorization: Bearer or x-access-token header."""
+    if bearer:
+        return bearer
+    if x_token:
+        return x_token
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Not authenticated",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+token_dependency = Annotated[str, Depends(get_token)]
 
 
 def get_app(request: Request) -> "FastAPI":
