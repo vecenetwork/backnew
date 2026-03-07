@@ -368,11 +368,12 @@ class UserRepository:
         )
 
     async def delete_user(self, user_id: int) -> None:
-        """Delete a user and ALL related data explicitly (not relying on CASCADE)."""
+        """Delete a user and ALL related data explicitly via raw SQL."""
+        # Check existence without loading into ORM session (avoids flush conflicts)
         result = await self.db.execute(
-            select(UserORM).where(UserORM.id == user_id)
+            text("SELECT id FROM users WHERE id = :uid"), {"uid": user_id}
         )
-        if not result.scalars().first():
+        if not result.first():
             raise Missing("User not found")
 
         uid = {"uid": user_id}
