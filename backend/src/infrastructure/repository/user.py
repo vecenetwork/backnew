@@ -368,28 +368,94 @@ class UserRepository:
         )
 
     async def delete_user(self, user_id: int) -> None:
-        """Delete a user and related data. Raise exception if not found."""
-        stmt = select(UserORM).where(UserORM.id == user_id)
-        result = await self.db.execute(stmt)
-        user = result.scalars().first()
-        if not user:
+        """Delete a user and ALL related data explicitly (not relying on CASCADE)."""
+        result = await self.db.execute(
+            select(UserORM).where(UserORM.id == user_id)
+        )
+        if not result.scalars().first():
             raise Missing("User not found")
 
-        # 1. Delete subscriptions where others subscribed TO this user (no FK CASCADE)
-        await self.db.execute(
-            delete(SubscriptionORM).where(
-                SubscriptionORM.subscribed_to_type == "user",
-                SubscriptionORM.subscribed_to_id == user_id,
-            )
-        )
+        uid = {"uid": user_id}
 
-        # 2. Null out question_options.author_id (FK has no ON DELETE)
-        await self.db.execute(
-            update(QuestionOptionORM).where(QuestionOptionORM.author_id == user_id).values(author_id=None)
-        )
+        # 1. answer_options for answers BY this user
+        await self.db.execute(text(
+            "DELETE FROM answer_options WHERE answer_id IN "
+            "(SELECT id FROM answers WHERE user_id = :uid)"
+        ), uid)
 
-        # 3. Delete user (CASCADE: user_settings, questions, answers, subscriptions as subscriber)
-        await self.db.delete(user)
+        # 2. answer_options for answers TO this user's questions
+        await self.db.execute(text(
+            "DELETE FROM answer_options WHERE answer_id IN "
+            "(SELECT a.id FROM answers a JOIN questions q ON a.question_id = q.id "
+            "WHERE q.author_id = :uid)"
+        ), uid)
+
+        # 3. answer_options referencing options on this user's questions
+        await self.db.execute(text(
+            "DELETE FROM answer_options WHERE option_id IN "
+            "(SELECT qo.id FROM question_options qo JOIN questions q "
+            "ON qo.question_id = q.id WHERE q.author_id = :uid)"
+        ), uid)
+
+        # 4. answers BY this user
+        await self.db.execute(text(
+            "DELETE FROM answers WHERE user_id = :uid"
+        ), uid)
+
+        # 5. answers TO this user's questions (by other users)
+        await self.db.execute(text(
+            "DELETE FROM answers WHERE question_id IN "
+            "(SELECT id FROM questions WHERE author_id = :uid)"
+        ), uid)
+
+        # 6. Null out custom options authored by this user on other people's questions
+        await self.db.execute(text(
+            "UPDATE question_options SET author_id = NULL WHERE author_id = :uid"
+        ), uid)
+
+        # 7. question_options on this user's questions
+        await self.db.execute(text(
+            "DELETE FROM question_options WHERE question_id IN "
+            "(SELECT id FROM questions WHERE author_id = :uid)"
+        ), uid)
+
+        # 8. question_hashtag_links for this user's questions
+        await self.db.execute(text(
+            "DELETE FROM question_hashtag_links WHERE question_id IN "
+            "(SELECT id FROM questions WHERE author_id = :uid)"
+        ), uid)
+
+        # 9. this user's questions
+        await self.db.execute(text(
+            "DELETE FROM questions WHERE author_id = :uid"
+        ), uid)
+
+        # 10. subscriptions where others subscribed TO this user
+        await self.db.execute(text(
+            "DELETE FROM subscriptions WHERE subscribed_to_type = 'user' "
+            "AND subscribed_to_id = :uid"
+        ), uid)
+
+        # 11. this user's own subscriptions
+        await self.db.execute(text(
+            "DELETE FROM subscriptions WHERE subscriber_id = :uid"
+        ), uid)
+
+        # 12. user settings
+        await self.db.execute(text(
+            "DELETE FROM user_settings WHERE user_id = :uid"
+        ), uid)
+
+        # 13. export requests (if any)
+        await self.db.execute(text(
+            "DELETE FROM account_deletion_export_requests WHERE user_id = :uid"
+        ), uid)
+
+        # 14. delete the user
+        await self.db.execute(text(
+            "DELETE FROM users WHERE id = :uid"
+        ), uid)
+
         await self.db.commit()
 
     async def search(
