@@ -369,12 +369,19 @@ class UserRepository:
 
     async def delete_user(self, user_id: int) -> None:
         """Delete a user and ALL related data explicitly via raw SQL."""
-        # Check existence without loading into ORM session (avoids flush conflicts)
+        # Check existence and fetch email before deletion
         result = await self.db.execute(
-            text("SELECT id FROM users WHERE id = :uid"), {"uid": user_id}
+            text("SELECT id, email FROM users WHERE id = :uid"), {"uid": user_id}
         )
-        if not result.first():
+        row = result.first()
+        if not row:
             raise Missing("User not found")
+
+        # 0. Log deleted account email (kept permanently for records)
+        await self.db.execute(
+            text("INSERT INTO account_deletion_export_requests (user_id, email) VALUES (:user_id, :email)"),
+            {"user_id": user_id, "email": row[1]},
+        )
 
         uid = {"uid": user_id}
 
@@ -447,10 +454,7 @@ class UserRepository:
             "DELETE FROM user_settings WHERE user_id = :uid"
         ), uid)
 
-        # 13. export requests (if any)
-        await self.db.execute(text(
-            "DELETE FROM account_deletion_export_requests WHERE user_id = :uid"
-        ), uid)
+        # 13. (email log kept — not deleted)
 
         # 14. delete the user
         await self.db.execute(text(
