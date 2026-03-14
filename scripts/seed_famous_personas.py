@@ -33,48 +33,50 @@ PASSWORD_HASH = "$2b$12$pAzELgYyuJfxGI1KeU038uQzBk5KyNFeX08eBabOPL0aUkRyWIPjS"
 ACTIVE_TILL = "2035-12-31 00:00:00"
 
 # ── Persona definitions ───────────────────────────────────────────────────────
+_DEMO_NOTE = "This is a demo account based on the individual opinions of this historical figure."
+
 PERSONAS = [
     dict(
-        name="Albert", surname="Einstein", username="einstein",
+        name="Albert", surname="Einstein (Demo)", username="einstein",
         email="einstein@vece.ai", birthday="1879-03-14", gender="Male",
         country_kw="Germany",
-        description="Theoretical physicist who developed the theory of relativity.",
+        description=f"Theoretical physicist who developed the theory of relativity. {_DEMO_NOTE}",
     ),
     dict(
-        name="Frida", surname="Kahlo", username="kahlo",
+        name="Frida", surname="Kahlo (Demo)", username="kahlo",
         email="kahlo@vece.ai", birthday="1907-07-06", gender="Female",
         country_kw="Mexico",
-        description="Mexican painter known for her deeply symbolic self-portraits.",
+        description=f"Mexican painter known for her deeply symbolic self-portraits. {_DEMO_NOTE}",
     ),
     dict(
-        name="Leonardo", surname="da Vinci", username="davinci",
+        name="Leonardo", surname="da Vinci (Demo)", username="davinci",
         email="davinci@vece.ai", birthday="1452-04-15", gender="Male",
         country_kw="Italy",
-        description="Renaissance polymath — painter, scientist, engineer, and visionary.",
+        description=f"Renaissance polymath — painter, scientist, engineer, and visionary. {_DEMO_NOTE}",
     ),
     dict(
-        name="Socrates", surname="of Athens", username="socrates",
+        name="Socrates", surname="of Athens (Demo)", username="socrates",
         email="socrates@vece.ai", birthday="0001-01-01", gender="Male",
         country_kw="Greece",
-        description="Ancient Greek philosopher and the founder of Western philosophy.",
+        description=f"Ancient Greek philosopher and the founder of Western philosophy. {_DEMO_NOTE}",
     ),
     dict(
-        name="Marie", surname="Curie", username="curie",
+        name="Marie", surname="Curie (Demo)", username="curie",
         email="curie@vece.ai", birthday="1867-11-07", gender="Female",
         country_kw="Poland",
-        description="Pioneering scientist and the first woman to win two Nobel Prizes.",
+        description=f"Pioneering scientist and the first woman to win two Nobel Prizes. {_DEMO_NOTE}",
     ),
     dict(
-        name="Steve", surname="Jobs", username="jobs",
+        name="Steve", surname="Jobs (Demo)", username="jobs",
         email="jobs@vece.ai", birthday="1955-02-24", gender="Male",
         country_kw="United States",
-        description="Co-founder of Apple and pioneer of the personal computer revolution.",
+        description=f"Co-founder of Apple and pioneer of the personal computer revolution. {_DEMO_NOTE}",
     ),
     dict(
-        name="Audrey", surname="Hepburn", username="hepburn",
+        name="Audrey", surname="Hepburn (Demo)", username="hepburn",
         email="hepburn@vece.ai", birthday="1929-05-04", gender="Female",
         country_kw="Belgium",
-        description="Iconic actress and humanitarian ambassador for UNICEF.",
+        description=f"Iconic actress and humanitarian ambassador for UNICEF. {_DEMO_NOTE}",
     ),
 ]
 
