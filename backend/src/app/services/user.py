@@ -174,6 +174,48 @@ class UserService:
         prefix = re.sub(r"[^a-zA-Z0-9]", "", email.split("@")[0])[:20] or "user"
         return f"{prefix}_{uuid4().hex[:6]}"
 
+    async def login_with_google(self, google_info: dict) -> dict:
+        """Find or create user from Google OAuth payload. Returns access_token + is_new_user."""
+        import secrets as _secrets
+        from datetime import timedelta
+        from infrastructure.api.auth.jwt_utils import create_token
+        from settings.security import ACCESS_TOKEN_EXPIRE_MINUTES
+
+        email = google_info["email"]
+        name = google_info.get("given_name") or ""
+        surname = google_info.get("family_name") or ""
+
+        is_new_user = False
+        try:
+            user = await self.repo.get_by_email(email)
+        except Missing:
+            # New Google user — create account with unguessable placeholder password
+            username = self._generate_username(email)
+            placeholder_hash = get_password_hash(_secrets.token_urlsafe(32))
+            user_data = UserCreate(
+                username=username,
+                email=email,
+                password="",
+                name=name or None,
+                surname=surname or None,
+                birthday=DEFAULT_BIRTHDAY,
+                country_id=DEFAULT_COUNTRY_ID,
+                gender=DEFAULT_GENDER,
+            )
+            user = await self.repo.create_user_simple(user_data, placeholder_hash, is_verified=True)
+            is_new_user = True
+
+        access_token = create_token(
+            data={"sub": user.username},
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        )
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "username": user.username,
+            "is_new_user": is_new_user,
+        }
+
     async def complete_registration(
         self,
         email: str,

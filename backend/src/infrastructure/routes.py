@@ -6,6 +6,7 @@ from infrastructure.api.auth import (
     barrier,
     reset_password,
     waitlist,
+    google,
 )
 from infrastructure.api import (
     countries,
@@ -28,6 +29,7 @@ API_PREFIX = "/api"
 routers = [
     register.router,
     login.router,
+    google.router,
     demo.router,
     barrier.router,
     users.router,
