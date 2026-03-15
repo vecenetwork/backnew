@@ -3,10 +3,16 @@ import os
 
 import httpx
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.exceptions import InvalidToken
-from infrastructure.api.dependencies import user_service_dep
+from app.schema.subscriptions import SubscriptionTypeEnum
+from infrastructure.api.dependencies import (
+    user_service_dep,
+    subscription_service_dep,
+    answer_service_dep,
+)
+from infrastructure.api.auth.register import DemoAnswerItem, DemoDataBody
 
 logger = logging.getLogger(__name__)
 
@@ -34,14 +40,18 @@ async def verify_google_token(id_token: str) -> dict:
 
 class GoogleLoginBody(BaseModel):
     id_token: str
+    demo_data: DemoDataBody | None = Field(default=None, description="Optional demo data to apply for new users")
 
 
 @router.post("/auth/google", status_code=status.HTTP_200_OK)
 async def google_login(
     body: GoogleLoginBody,
     user_service: user_service_dep,
+    subscription_service: subscription_service_dep,
+    answer_service: answer_service_dep,
 ):
-    """Login or register via Google OAuth. Returns access_token + is_new_user flag."""
+    """Login or register via Google OAuth. Returns access_token + is_new_user flag.
+    If demo_data is provided and user is new, applies hashtag subscriptions and answers."""
     try:
         google_info = await verify_google_token(body.id_token)
     except InvalidToken as e:
@@ -52,10 +62,53 @@ async def google_login(
 
     try:
         result = await user_service.login_with_google(google_info)
-        return result
     except Exception as e:
         logger.exception("Google login failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Google login failed. Please try again.",
         )
+
+    # Apply demo data only for brand-new users when demo_data is provided
+    if result.get("is_new_user") and body.demo_data:
+        demo = body.demo_data
+        # We need the User object — re-fetch using the issued token
+        try:
+            new_user = await user_service.get_current_user(result["access_token"])
+        except Exception as e:
+            logger.warning("Could not fetch new Google user for demo migration: %s", e)
+            return result
+
+        # Subscribe to hashtags
+        for hashtag_id in demo.hashtag_ids:
+            try:
+                is_fav = hashtag_id in demo.favourite_hashtag_ids
+                await subscription_service.subscribe(
+                    new_user, hashtag_id, SubscriptionTypeEnum.hashtag, favourite=is_fav
+                )
+            except Exception as e:
+                logger.warning("Demo migration (Google): failed to subscribe hashtag %s: %s", hashtag_id, e)
+
+        # Set favourites for any that weren't set on subscribe
+        for hashtag_id in demo.favourite_hashtag_ids:
+            if hashtag_id not in demo.hashtag_ids:
+                continue
+            try:
+                await subscription_service.set_favorite(
+                    new_user, hashtag_id, SubscriptionTypeEnum.hashtag, True
+                )
+            except Exception as e:
+                logger.warning("Demo migration (Google): failed to set favourite %s: %s", hashtag_id, e)
+
+        # Create answers
+        if demo.answers:
+            answers_data = [
+                {"question_id": a.question_id, "option_ids": a.option_ids}
+                for a in demo.answers
+            ]
+            try:
+                await answer_service.create_answers_for_demo_migration(new_user, answers_data)
+            except Exception as e:
+                logger.warning("Demo migration (Google): failed to create answers: %s", e)
+
+    return result
